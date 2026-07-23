@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  createOrganization,
   getOrganizationDetail,
   getOrganizationUserTokenUsage,
   listOrganizations,
@@ -332,6 +333,10 @@ export default function OrganizationsPage() {
   const [usageData, setUsageData] = useState(null)
   const [usageError, setUsageError] = useState('')
   const [usageLoading, setUsageLoading] = useState(false)
+  const [createForm, setCreateForm] = useState({ name: '', admin_email: '' })
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
+  const [createNotice, setCreateNotice] = useState('')
 
   async function loadOrganizations(preferredOrgId) {
     setLoading(true)
@@ -405,6 +410,26 @@ export default function OrganizationsPage() {
     }
   }
 
+  async function handleCreateOrganization(event) {
+    event.preventDefault()
+    setCreating(true)
+    setCreateError('')
+    setCreateNotice('')
+    try {
+      const created = await createOrganization(token, {
+        name: createForm.name.trim(),
+        admin_email: createForm.admin_email.trim(),
+      })
+      setCreateForm({ name: '', admin_email: '' })
+      setCreateNotice(`Created ${created.name} — ${created.admin.email} enrolled as admin.`)
+      await loadOrganizations(created.id)
+    } catch (err) {
+      setCreateError(err.message || 'Failed to create organization')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <div style={{ display: 'grid', gap: 20 }}>
       <section
@@ -433,6 +458,108 @@ export default function OrganizationsPage() {
           Review current-month spend across organizations, store monthly token usage costs in the
           admin DB view, and drill into each user&apos;s usage without leaving the admin app.
         </p>
+      </section>
+
+      <section
+        style={{
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+          padding: '20px 24px',
+          display: 'grid',
+          gap: 14,
+        }}
+      >
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Add Organization</div>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          The first admin must already have an AngelHQ account — they are enrolled as an active
+          admin immediately (no invite email is sent).
+        </p>
+        <form
+          onSubmit={handleCreateOrganization}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(200px, 1fr) minmax(220px, 1fr) auto',
+            gap: 12,
+            alignItems: 'end',
+          }}
+        >
+          {[
+            ['Organization name', 'name', 'text', 'Acme Inc.'],
+            ['First admin email', 'admin_email', 'email', 'admin@company.com'],
+          ].map(([label, key, type, placeholder]) => (
+            <label key={key} style={{ display: 'grid', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
+                {label.toUpperCase()}
+              </span>
+              <input
+                type={type}
+                value={createForm[key]}
+                onChange={(event) => setCreateForm((current) => ({ ...current, [key]: event.target.value }))}
+                placeholder={placeholder}
+                required
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
+                  color: 'var(--text)',
+                  fontSize: 13,
+                  fontFamily: 'var(--font-mono)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </label>
+          ))}
+          <button
+            type="submit"
+            disabled={creating}
+            style={{
+              padding: '11px 18px',
+              background: creating ? '#a85a25' : 'var(--accent)',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: '0.1em',
+              cursor: creating ? 'not-allowed' : 'pointer',
+              fontFamily: 'var(--font-mono)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {creating ? 'CREATING...' : 'ADD ORGANIZATION'}
+          </button>
+        </form>
+        {createError && (
+          <div
+            style={{
+              background: '#FFF0F0',
+              border: '1px solid #FFCACA',
+              borderRadius: 4,
+              padding: '10px 12px',
+              fontSize: 12,
+              color: '#DC3545',
+            }}
+          >
+            {createError}
+          </div>
+        )}
+        {createNotice && (
+          <div
+            style={{
+              background: '#F0FFF4',
+              border: '1px solid #B7E4C7',
+              borderRadius: 4,
+              padding: '10px 12px',
+              fontSize: 12,
+              color: '#137333',
+            }}
+          >
+            {createNotice}
+          </div>
+        )}
       </section>
 
       <section

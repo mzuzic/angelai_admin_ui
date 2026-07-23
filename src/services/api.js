@@ -87,6 +87,14 @@ export async function listOrganizations(token) {
   return request('/api/organizations', { token })
 }
 
+export async function createOrganization(token, payload) {
+  return request('/api/organizations', {
+    method: 'POST',
+    token,
+    body: payload,
+  })
+}
+
 export async function getOrganizationDetail(token, organizationId) {
   return request(`/api/organizations/${organizationId}`, { token })
 }
