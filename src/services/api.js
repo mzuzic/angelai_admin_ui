@@ -99,6 +99,14 @@ export async function getOrganizationDetail(token, organizationId) {
   return request(`/api/organizations/${organizationId}`, { token })
 }
 
+export async function updateOrganizationFeatures(token, organizationId, changes) {
+  return request(`/api/organizations/${organizationId}/features`, {
+    token,
+    method: 'PUT',
+    body: changes,
+  })
+}
+
 export async function getOrganizationUserTokenUsage(token, organizationId, userId) {
   return request(`/api/organizations/${organizationId}/users/${userId}/token-usage`, { token })
 }

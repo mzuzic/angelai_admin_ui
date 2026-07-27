@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import {
   createOrganization,
   getOrganizationDetail,
+  updateOrganizationFeatures,
   getOrganizationUserTokenUsage,
   listOrganizations,
 } from '../services/api.js'
@@ -356,6 +357,28 @@ export default function OrganizationsPage() {
       setError(err.message || 'Failed to load organizations')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const MODULES = [
+    ['operations', 'Operations', 'Order pipeline, Metrc, credit, Route Planner — off by default'],
+    ['marketing', 'Marketing', 'Marketing emails + Market Insights'],
+    ['customer_service', 'Customer Service', 'Follow-up dashboards'],
+    ['scripts', 'Scripts', 'Rep call-script assignments'],
+  ]
+  const [featureSaving, setFeatureSaving] = useState('')
+  const [featureError, setFeatureError] = useState('')
+
+  async function toggleFeature(name, value) {
+    setFeatureSaving(name)
+    setFeatureError('')
+    try {
+      const res = await updateOrganizationFeatures(token, selectedOrgId, { [name]: value })
+      setDetail((d) => (d ? { ...d, features: res.features } : d))
+    } catch (err) {
+      setFeatureError(err.message || 'Failed to update module access')
+    } finally {
+      setFeatureSaving('')
     }
   }
 
@@ -762,6 +785,58 @@ export default function OrganizationsPage() {
                 value={fmtCost(detail.current_month.cost_usd)}
                 accent="var(--accent)"
               />
+            </div>
+
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Modules</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Per-organization access. Org admins cannot change these — grants happen here only.
+              </div>
+              {featureError ? (
+                <div style={{ fontSize: 12, color: 'var(--danger, #e5484d)' }}>{featureError}</div>
+              ) : null}
+              <div style={{ display: 'grid', gap: 8 }}>
+                {MODULES.map(([key, label, hint]) => {
+                  const on = !!detail.features?.[key]
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        padding: '10px 12px',
+                        border: '1px solid var(--border)',
+                        borderRadius: 8,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{hint}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleFeature(key, !on)}
+                        disabled={featureSaving === key}
+                        style={{
+                          minWidth: 84,
+                          padding: '6px 12px',
+                          borderRadius: 999,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: featureSaving === key ? 'wait' : 'pointer',
+                          border: on ? '1px solid var(--accent)' : '1px solid var(--border)',
+                          background: on ? 'var(--accent)' : 'transparent',
+                          color: on ? '#fff' : 'var(--text-muted)',
+                        }}
+                      >
+                        {featureSaving === key ? '…' : on ? 'Enabled' : 'Disabled'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
             <div style={{ display: 'grid', gap: 12 }}>
