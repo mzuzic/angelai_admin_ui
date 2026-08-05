@@ -1418,6 +1418,11 @@ export default function OrganizationsPage() {
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                                   {model.model_id} · {model.provider} · in ${Number(model.input_price).toFixed(4)} / out ${Number(model.output_price).toFixed(4)}
                                 </div>
+                                {model.description ? (
+                                  <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                                    {model.description}
+                                  </div>
+                                ) : null}
                               </div>
                             </label>
                           )
