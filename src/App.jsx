@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import AppShell from './components/AppShell.jsx'
 import { useAuth } from './contexts/auth-context.js'
 import AdminUsersPage from './pages/AdminUsersPage.jsx'
+import AIModelsPage from './pages/AIModelsPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import OrganizationsPage from './pages/OrganizationsPage.jsx'
@@ -51,6 +52,16 @@ export default function App() {
           <ProtectedRoute>
             <AppShell>
               <AdminUsersPage />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ai-models"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <AIModelsPage />
             </AppShell>
           </ProtectedRoute>
         }
