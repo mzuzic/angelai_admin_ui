@@ -7,6 +7,8 @@ import { useAuth } from '../contexts/auth-context.js'
 const EMPTY_FORM = {
   model_id: '',
   display_name: '',
+  short_hint: '',
+  description: '',
   provider: 'anthropic',
   input_price: '0',
   output_price: '0',
@@ -46,6 +48,8 @@ export default function AIModelsPage() {
   function normalizePayload(form, includeModelId = false) {
     const payload = {
       display_name: form.display_name.trim(),
+      short_hint: form.short_hint.trim() || null,
+      description: form.description.trim() || null,
       provider: form.provider.trim().toLowerCase(),
       input_price: Number(form.input_price || 0),
       output_price: Number(form.output_price || 0),
@@ -63,6 +67,8 @@ export default function AIModelsPage() {
     setEditForm({
       model_id: model.model_id,
       display_name: model.display_name,
+      short_hint: model.short_hint || '',
+      description: model.description || '',
       provider: model.provider,
       input_price: String(model.input_price),
       output_price: String(model.output_price),
@@ -219,6 +225,7 @@ export default function AIModelsPage() {
           {[
             ['Model ID', 'model_id', 'text', editingId],
             ['Display Name', 'display_name', 'text', false],
+            ['Short Hint', 'short_hint', 'text', false],
             ['Input Price ($ / 1M)', 'input_price', 'number', false],
             ['Output Price ($ / 1M)', 'output_price', 'number', false],
             ['Sort Order', 'sort_order', 'number', false],
@@ -250,6 +257,29 @@ export default function AIModelsPage() {
 
           <label style={{ display: 'grid', gap: 6 }}>
             <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
+              DESCRIPTION
+            </span>
+            <textarea
+              value={activeForm.description}
+              onChange={(event) => setActiveForm((current) => ({ ...current, description: event.target.value }))}
+              rows={4}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                background: 'var(--input-bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                color: 'var(--text)',
+                fontSize: 13,
+                fontFamily: 'var(--font)',
+                boxSizing: 'border-box',
+                resize: 'vertical',
+              }}
+            />
+          </label>
+
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
               PROVIDER
             </span>
             <select
@@ -268,7 +298,6 @@ export default function AIModelsPage() {
               }}
             >
               <option value="anthropic">anthropic</option>
-              <option value="openai">openai</option>
             </select>
           </label>
 
@@ -372,6 +401,16 @@ export default function AIModelsPage() {
                       <td style={{ padding: '12px' }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{model.display_name}</div>
                         <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{model.model_id}</div>
+                        {model.short_hint ? (
+                          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
+                            {model.short_hint}
+                          </div>
+                        ) : null}
+                        {model.description ? (
+                          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                            {model.description}
+                          </div>
+                        ) : null}
                       </td>
                       <td style={{ padding: '12px', fontSize: 12, color: 'var(--text)' }}>{model.provider}</td>
                       <td style={{ padding: '12px', textAlign: 'right', fontSize: 12, fontFamily: 'var(--font-mono)' }}>${Number(model.input_price).toFixed(4)}</td>
