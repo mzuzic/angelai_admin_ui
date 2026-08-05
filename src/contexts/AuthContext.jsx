@@ -1,34 +1,43 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AuthContext } from './auth-context.js'
-import { getMe, login as loginRequest } from '../services/api.js'
-
-const TOKEN_KEY = 'angelai_admin_access_token'
+import {
+  clearAccessToken,
+  configureAuth,
+  getMe,
+  login as loginRequest,
+  logout as logoutRequest,
+  refreshSession,
+} from '../services/api.js'
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => window.localStorage.getItem(TOKEN_KEY))
+  const [token, setToken] = useState(null)
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    configureAuth({
+      getAccessToken: () => token,
+      onAccessToken: setToken,
+      onUnauthorized: () => {
+        setToken(null)
+        setUser(null)
+      },
+    })
+  }, [])
 
   useEffect(() => {
     let active = true
 
     async function hydrate() {
-      if (!token) {
-        if (active) {
-          setUser(null)
-          setLoading(false)
-        }
-        return
-      }
-
       try {
-        const me = await getMe(token)
+        await refreshSession()
+        const me = await getMe()
         if (active) {
           setUser(me)
         }
       } catch {
-        window.localStorage.removeItem(TOKEN_KEY)
         if (active) {
+          clearAccessToken()
           setToken(null)
           setUser(null)
         }
@@ -48,17 +57,20 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const result = await loginRequest(email, password)
-    window.localStorage.setItem(TOKEN_KEY, result.access_token)
     setToken(result.access_token)
-    const me = await getMe(result.access_token)
+    const me = await getMe()
     setUser(me)
     return me
   }
 
-  function logout() {
-    window.localStorage.removeItem(TOKEN_KEY)
-    setToken(null)
-    setUser(null)
+  async function logout() {
+    try {
+      await logoutRequest()
+    } finally {
+      clearAccessToken()
+      setToken(null)
+      setUser(null)
+    }
   }
 
   const value = useMemo(
