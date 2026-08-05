@@ -2,11 +2,16 @@ import { useEffect, useState } from 'react'
 
 import {
   createOrganization,
+  deleteOrganization,
   getOrganizationDetail,
+  getOrganizationMonthlyUserBreakdown,
+  listAIModels,
   updateOrganizationFeatures,
+  updateOrganization,
   getOrganizationUserTokenUsage,
   listOrganizations,
 } from '../services/api.js'
+import ConfirmModal from '../components/ConfirmModal.jsx'
 import { useAuth } from '../contexts/auth-context.js'
 
 function fmtNumber(value) {
@@ -22,6 +27,13 @@ function fmtCost(value) {
 
 function totalTokens(stats) {
   return (stats?.input_tokens || 0) + (stats?.output_tokens || 0)
+}
+
+function fmtMonthLabel(value) {
+  return new Date(value).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+  })
 }
 
 function TokenStatCard({ label, value, accent = 'var(--text)' }) {
@@ -321,6 +333,182 @@ function TokenUsageModal({ user, data, error, loading, onClose }) {
   )
 }
 
+function MonthlyUserBreakdownModal({ monthLabel, data, error, loading, onClose }) {
+  const statBlock = (label, value, accent = '#1A1A1A') => (
+    <div
+      style={{
+        background: '#F7F6F4',
+        border: '1px solid #E5E4E1',
+        borderRadius: 6,
+        padding: '14px 16px',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+          color: '#767676',
+          letterSpacing: '0.08em',
+          marginBottom: 10,
+          fontFamily: 'var(--font-mono)',
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 18,
+          fontWeight: 700,
+          color: accent,
+          fontFamily: 'var(--font-mono)',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.35)', zIndex: 999 }}
+      />
+      <div
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: '#FFFFFF',
+          border: '1px solid #E5E4E1',
+          borderRadius: 8,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          zIndex: 1000,
+          width: 'min(920px, 94vw)',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid #E5E4E1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1A1A' }}>Monthly User Cost Distribution</div>
+            <div style={{ fontSize: 11, color: '#767676', marginTop: 2 }}>{monthLabel}</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: 'none',
+              background: 'none',
+              fontSize: 20,
+              cursor: 'pointer',
+              color: '#767676',
+              padding: 0,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+        <div style={{ overflowY: 'auto', padding: 20 }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 32, color: '#767676', fontSize: 13 }}>Loading...</div>
+          ) : error ? (
+            <div style={{ color: '#DC3545', fontSize: 13, padding: 8 }}>{error}</div>
+          ) : data ? (
+            <div style={{ display: 'grid', gap: 16 }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                  gap: 12,
+                }}
+              >
+                {statBlock('INPUT TOKENS', fmtNumber(data.totals.input_tokens))}
+                {statBlock('OUTPUT TOKENS', fmtNumber(data.totals.output_tokens))}
+                {statBlock('API CALLS', fmtNumber(data.totals.api_calls))}
+                {statBlock('TOOL CALLS', fmtNumber(data.totals.tool_calls))}
+                {statBlock('TOTAL COST', fmtCost(data.totals.cost_usd), '#CC6B2E')}
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #E5E4E1' }}>
+                      {['Name', 'Email', 'Role', 'Status', 'Tokens', 'API calls', 'Tool calls', 'Cost'].map((header) => (
+                        <th
+                          key={header}
+                          style={{
+                            textAlign: header === 'Name' || header === 'Email' || header === 'Role' || header === 'Status' ? 'left' : 'right',
+                            padding: '8px 10px',
+                            fontSize: 10,
+                            color: '#767676',
+                            fontWeight: 600,
+                            letterSpacing: '0.06em',
+                            fontFamily: 'var(--font-mono)',
+                          }}
+                        >
+                          {header.toUpperCase()}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.users.map((row) => (
+                      <tr key={row.user_id} style={{ borderBottom: '1px solid #F3F2EF' }}>
+                        <td style={{ padding: '10px', fontSize: 12, color: '#1A1A1A', fontWeight: 600 }}>
+                          {row.name}
+                        </td>
+                        <td style={{ padding: '10px', fontSize: 12, color: '#767676' }}>{row.email}</td>
+                        <td style={{ padding: '10px', fontSize: 12, color: '#1A1A1A' }}>{row.role}</td>
+                        <td style={{ padding: '10px', fontSize: 12, color: row.status === 'active' ? 'var(--green)' : '#767676' }}>
+                          {row.status}
+                        </td>
+                        <td style={{ padding: '10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                          {fmtNumber(totalTokens(row.usage))}
+                        </td>
+                        <td style={{ padding: '10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                          {fmtNumber(row.usage.api_calls)}
+                        </td>
+                        <td style={{ padding: '10px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                          {fmtNumber(row.usage.tool_calls)}
+                        </td>
+                        <td
+                          style={{
+                            padding: '10px',
+                            fontSize: 12,
+                            color: '#CC6B2E',
+                            textAlign: 'right',
+                            fontFamily: 'var(--font-mono)',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {fmtCost(row.usage.cost_usd)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </>
+  )
+}
+
 export default function OrganizationsPage() {
   const { token } = useAuth()
   const [organizations, setOrganizations] = useState([])
@@ -334,32 +522,22 @@ export default function OrganizationsPage() {
   const [usageData, setUsageData] = useState(null)
   const [usageError, setUsageError] = useState('')
   const [usageLoading, setUsageLoading] = useState(false)
+  const [monthBreakdown, setMonthBreakdown] = useState(null)
+  const [monthBreakdownData, setMonthBreakdownData] = useState(null)
+  const [monthBreakdownError, setMonthBreakdownError] = useState('')
+  const [monthBreakdownLoading, setMonthBreakdownLoading] = useState(false)
   const [createForm, setCreateForm] = useState({ name: '', admin_email: '' })
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [createNotice, setCreateNotice] = useState('')
-
-  async function loadOrganizations(preferredOrgId) {
-    setLoading(true)
-    try {
-      const rows = await listOrganizations(token)
-      setOrganizations(rows)
-      setError('')
-      if (!rows.length) {
-        setSelectedOrgId(null)
-        setDetail(null)
-        return
-      }
-      const nextOrgId =
-        preferredOrgId && rows.some((row) => row.id === preferredOrgId) ? preferredOrgId : rows[0].id
-      setSelectedOrgId(nextOrgId)
-    } catch (err) {
-      setError(err.message || 'Failed to load organizations')
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  const [editForm, setEditForm] = useState(null)
+  const [editError, setEditError] = useState('')
+  const [editNotice, setEditNotice] = useState('')
+  const [savingOrg, setSavingOrg] = useState(false)
+  const [deletingOrg, setDeletingOrg] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [aiModels, setAiModels] = useState([])
+  const [editTab, setEditTab] = useState('profile')
   const MODULES = [
     ['operations', 'Operations', 'Order pipeline, Metrc, credit, Route Planner — off by default'],
     ['marketing', 'Marketing', 'Marketing emails + Market Insights'],
@@ -379,6 +557,27 @@ export default function OrganizationsPage() {
       setFeatureError(err.message || 'Failed to update module access')
     } finally {
       setFeatureSaving('')
+    }
+  }
+
+  async function loadOrganizations(preferredOrgId) {
+    setLoading(true)
+    try {
+      const rows = await listOrganizations(token)
+      setOrganizations(rows)
+      setError('')
+      if (!rows.length) {
+        setSelectedOrgId(null)
+        setDetail(null)
+        return
+      }
+      const nextOrgId =
+        preferredOrgId && rows.some((row) => row.id === preferredOrgId) ? preferredOrgId : rows[0].id
+      setSelectedOrgId(nextOrgId)
+    } catch (err) {
+      setError(err.message || 'Failed to load organizations')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -405,8 +604,34 @@ export default function OrganizationsPage() {
   }, [token])
 
   useEffect(() => {
+    listAIModels(token).then(setAiModels).catch(() => {})
+  }, [token])
+
+  useEffect(() => {
     loadDetail(selectedOrgId)
   }, [selectedOrgId, token])
+
+  useEffect(() => {
+    if (!detail) {
+      setEditForm(null)
+      return
+    }
+    setEditForm({
+      name: detail.name || '',
+      slug: detail.slug || '',
+      client_code: detail.client_code || '',
+      package: detail.package || 'foundation',
+      address_line1: detail.address_line1 || '',
+      address_line2: detail.address_line2 || '',
+      country: detail.country || '',
+      state_province: detail.state_province || '',
+      city: detail.city || '',
+      postal_code: detail.postal_code || '',
+      allowed_ai_models: detail.allowed_ai_models || [],
+      notification_recipients: (detail.notification_recipients || []).join('\n'),
+      settings: JSON.stringify(detail.settings || {}, null, 2),
+    })
+  }, [detail])
 
   async function handleRefresh() {
     await loadOrganizations(selectedOrgId)
@@ -433,6 +658,24 @@ export default function OrganizationsPage() {
     }
   }
 
+  async function openMonthBreakdown(row) {
+    if (!selectedOrgId) {
+      return
+    }
+    setMonthBreakdown(row)
+    setMonthBreakdownLoading(true)
+    setMonthBreakdownData(null)
+    setMonthBreakdownError('')
+    try {
+      const data = await getOrganizationMonthlyUserBreakdown(token, selectedOrgId, row.month_start)
+      setMonthBreakdownData(data)
+    } catch (err) {
+      setMonthBreakdownError(err.message || 'Failed to load monthly user breakdown')
+    } finally {
+      setMonthBreakdownLoading(false)
+    }
+  }
+
   async function handleCreateOrganization(event) {
     event.preventDefault()
     setCreating(true)
@@ -450,6 +693,94 @@ export default function OrganizationsPage() {
       setCreateError(err.message || 'Failed to create organization')
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function handleSaveOrganization(event) {
+    event.preventDefault()
+    if (!selectedOrgId || !editForm) {
+      return
+    }
+
+    setSavingOrg(true)
+    setEditError('')
+    setEditNotice('')
+
+    let parsedSettings
+    try {
+      parsedSettings = JSON.parse(editForm.settings || '{}')
+    } catch {
+      setEditError('Settings must be valid JSON.')
+      setSavingOrg(false)
+      return
+    }
+
+    try {
+      const updated = await updateOrganization(token, selectedOrgId, {
+        name: editForm.name.trim(),
+        slug: editForm.slug.trim(),
+        client_code: editForm.client_code.trim() || null,
+        package: editForm.package,
+        address_line1: editForm.address_line1.trim() || null,
+        address_line2: editForm.address_line2.trim() || null,
+        country: editForm.country.trim().toUpperCase() || null,
+        state_province: editForm.state_province.trim() || null,
+        city: editForm.city.trim() || null,
+        postal_code: editForm.postal_code.trim() || null,
+        allowed_ai_models: editForm.allowed_ai_models,
+        notification_recipients: editForm.notification_recipients
+          .split('\n')
+          .map((value) => value.trim())
+          .filter(Boolean),
+        settings: parsedSettings,
+      })
+      setDetail(updated)
+      setOrganizations((current) =>
+        current.map((row) =>
+          row.id === updated.id
+            ? {
+                ...row,
+                name: updated.name,
+                slug: updated.slug,
+                client_code: updated.client_code,
+                package: updated.package,
+              }
+            : row,
+        ),
+      )
+      setEditNotice('Organization updated.')
+    } catch (err) {
+      setEditError(err.message || 'Failed to update organization')
+    } finally {
+      setSavingOrg(false)
+    }
+  }
+
+  async function handleDeleteOrganization() {
+    if (!selectedOrgId || !detail) {
+      return
+    }
+
+    setDeletingOrg(true)
+    setEditError('')
+    setEditNotice('')
+    try {
+      await deleteOrganization(token, selectedOrgId)
+      const remaining = organizations.filter((row) => row.id !== selectedOrgId)
+      setOrganizations(remaining)
+      const nextOrgId = remaining[0]?.id || null
+      setSelectedOrgId(nextOrgId)
+      setDetail(null)
+      setEditForm(null)
+      setConfirmDeleteOpen(false)
+      setEditNotice('Organization deleted.')
+      if (nextOrgId) {
+        await loadDetail(nextOrgId)
+      }
+    } catch (err) {
+      setEditError(err.message || 'Failed to delete organization')
+    } finally {
+      setDeletingOrg(false)
     }
   }
 
@@ -675,6 +1006,7 @@ export default function OrganizationsPage() {
                         <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
                           {organization.slug}
                           {organization.client_code ? ` · ${organization.client_code}` : ''}
+                          {organization.package ? ` · ${organization.package}` : ''}
                         </div>
                       </td>
                       <td
@@ -760,223 +1092,590 @@ export default function OrganizationsPage() {
                 <div style={{ marginTop: 6, fontSize: 13, color: 'var(--text-muted)' }}>
                   {detail.slug}
                   {detail.client_code ? ` · ${detail.client_code}` : ''}
+                  {detail.package ? ` · ${detail.package}` : ''}
                 </div>
               </div>
             </div>
 
-            <div
+            <form
+              onSubmit={handleSaveOrganization}
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                 gap: 14,
+                padding: '18px',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                background: '#FCFBF9',
               }}
             >
-              <TokenStatCard label="Active users" value={fmtNumber(detail.active_user_count)} />
-              <TokenStatCard
-                label="Current month total tokens"
-                value={fmtNumber(totalTokens(detail.current_month))}
-              />
-              <TokenStatCard
-                label="Current month API calls"
-                value={fmtNumber(detail.current_month.api_calls)}
-              />
-              <TokenStatCard
-                label="Current month cost"
-                value={fmtCost(detail.current_month.cost_usd)}
-                accent="var(--accent)"
-              />
-            </div>
-
-            <div style={{ display: 'grid', gap: 10 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Modules</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Per-organization access. Org admins cannot change these — grants happen here only.
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Edit organization</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Editable org-table fields. TOS and timestamps stay read-only.
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="submit"
+                    disabled={savingOrg || deletingOrg || !editForm}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: savingOrg ? '#a85a25' : 'var(--accent)',
+                      color: '#fff',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-mono)',
+                      cursor: savingOrg ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {savingOrg ? 'SAVING...' : 'SAVE ORGANIZATION'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteOpen(true)}
+                    disabled={savingOrg || deletingOrg}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 6,
+                      border: '1px solid #F2C7C7',
+                      background: '#FFF5F5',
+                      color: '#C24B4B',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-mono)',
+                      cursor: deletingOrg ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {deletingOrg ? 'DELETING...' : 'DELETE ORGANIZATION'}
+                  </button>
+                </div>
               </div>
-              {featureError ? (
-                <div style={{ fontSize: 12, color: 'var(--danger, #e5484d)' }}>{featureError}</div>
+
+              {editError ? (
+                <div
+                  style={{
+                    background: '#FFF0F0',
+                    border: '1px solid #FFCACA',
+                    borderRadius: 4,
+                    padding: '10px 12px',
+                    fontSize: 12,
+                    color: '#DC3545',
+                  }}
+                >
+                  {editError}
+                </div>
               ) : null}
-              <div style={{ display: 'grid', gap: 8 }}>
-                {MODULES.map(([key, label, hint]) => {
-                  const on = !!detail.features?.[key]
-                  return (
-                    <div
-                      key={key}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 12,
-                        padding: '10px 12px',
-                        border: '1px solid var(--border)',
-                        borderRadius: 8,
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{hint}</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => toggleFeature(key, !on)}
-                        disabled={featureSaving === key}
+              {editNotice ? (
+                <div
+                  style={{
+                    background: '#F0FFF4',
+                    border: '1px solid #B7E4C7',
+                    borderRadius: 4,
+                    padding: '10px 12px',
+                    fontSize: 12,
+                    color: '#137333',
+                  }}
+                >
+                  {editNotice}
+                </div>
+              ) : null}
+
+              {editForm ? (
+                <>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[
+                      ['profile', 'Profile'],
+                      ['ai_models', 'AI Models'],
+                      ['cost', 'Cost'],
+                      ['advanced', 'Advanced'],
+                    ].map(([key, label]) => {
+                      const active = editTab === key
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setEditTab(key)}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 999,
+                            border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
+                            background: active ? '#FFF7F0' : 'transparent',
+                            color: active ? 'var(--accent)' : 'var(--text-muted)',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            fontFamily: 'var(--font-mono)',
+                          }}
+                        >
+                          {label.toUpperCase()}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {editTab === 'profile' ? (
+                    <div style={{ display: 'grid', gap: 18 }}>
+                      <div
                         style={{
-                          minWidth: 84,
-                          padding: '6px 12px',
-                          borderRadius: 999,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: featureSaving === key ? 'wait' : 'pointer',
-                          border: on ? '1px solid var(--accent)' : '1px solid var(--border)',
-                          background: on ? 'var(--accent)' : 'transparent',
-                          color: on ? '#fff' : 'var(--text-muted)',
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                          gap: 12,
                         }}
                       >
-                        {featureSaving === key ? '…' : on ? 'Enabled' : 'Disabled'}
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Monthly stored costs</div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Month', 'Input', 'Output', 'API calls', 'Tool calls', 'Cost'].map((header) => (
-                        <th
-                          key={header}
-                          style={{
-                            textAlign: header === 'Month' ? 'left' : 'right',
-                            padding: '10px 12px',
-                            fontSize: 11,
-                            color: 'var(--text-muted)',
-                            fontWeight: 600,
-                            letterSpacing: '0.06em',
-                          }}
-                        >
-                          {header.toUpperCase()}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.monthly_history.map((row) => (
-                      <tr key={row.month_start} style={{ borderBottom: '1px solid #F1EFEA' }}>
-                        <td style={{ padding: '12px', fontSize: 13, color: 'var(--text)' }}>
-                          {new Date(row.month_start).toLocaleDateString(undefined, {
-                            year: 'numeric',
-                            month: 'long',
-                          })}
-                        </td>
-                        <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-                          {fmtNumber(row.input_tokens)}
-                        </td>
-                        <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-                          {fmtNumber(row.output_tokens)}
-                        </td>
-                        <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-                          {fmtNumber(row.api_calls)}
-                        </td>
-                        <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-                          {fmtNumber(row.tool_calls)}
-                        </td>
-                        <td
-                          style={{
-                            padding: '12px',
-                            textAlign: 'right',
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: 'var(--accent)',
-                          }}
-                        >
-                          {fmtCost(row.cost_usd)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Users in organization</div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Name', 'Email', 'Role', 'Status', 'This month tokens', 'This month cost', ''].map((header) => (
-                        <th
-                          key={header || 'action'}
-                          style={{
-                            textAlign:
-                              header === 'Name' || header === 'Email' || header === 'Role' || header === 'Status'
-                                ? 'left'
-                                : 'right',
-                            padding: '10px 12px',
-                            fontSize: 11,
-                            color: 'var(--text-muted)',
-                            fontWeight: 600,
-                            letterSpacing: '0.06em',
-                          }}
-                        >
-                          {header ? header.toUpperCase() : ''}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.users.map((user) => (
-                      <tr key={user.user_id} style={{ borderBottom: '1px solid #F1EFEA' }}>
-                        <td style={{ padding: '12px', fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
-                          {user.name}
-                        </td>
-                        <td style={{ padding: '12px', fontSize: 12, color: 'var(--text-muted)' }}>{user.email}</td>
-                        <td style={{ padding: '12px', fontSize: 12, color: 'var(--text)' }}>{user.role}</td>
-                        <td style={{ padding: '12px', fontSize: 12, color: user.status === 'active' ? 'var(--green)' : 'var(--text-muted)' }}>
-                          {user.status}
-                        </td>
-                        <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-                          {fmtNumber(totalTokens(user.this_month))}
-                        </td>
-                        <td
-                          style={{
-                            padding: '12px',
-                            textAlign: 'right',
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: 'var(--accent)',
-                          }}
-                        >
-                          {fmtCost(user.this_month.cost_usd)}
-                        </td>
-                        <td style={{ padding: '12px', textAlign: 'right' }}>
-                          <button
-                            type="button"
-                            onClick={() => openUsage(user)}
+                        {[
+                          ['Organization name', 'name'],
+                          ['Slug', 'slug'],
+                          ['Client code', 'client_code'],
+                          ['Address line 1', 'address_line1'],
+                          ['Address line 2', 'address_line2'],
+                          ['Country', 'country'],
+                          ['State / province', 'state_province'],
+                          ['City', 'city'],
+                          ['Postal code', 'postal_code'],
+                        ].map(([label, key]) => (
+                          <label key={key} style={{ display: 'grid', gap: 6 }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
+                              {label.toUpperCase()}
+                            </span>
+                            <input
+                              type="text"
+                              value={editForm[key]}
+                              onChange={(event) =>
+                                setEditForm((current) => ({ ...current, [key]: event.target.value }))
+                              }
+                              style={{
+                                width: '100%',
+                                padding: '10px 12px',
+                                background: 'var(--input-bg)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 4,
+                                color: 'var(--text)',
+                                fontSize: 13,
+                                fontFamily: 'var(--font-mono)',
+                                boxSizing: 'border-box',
+                              }}
+                            />
+                          </label>
+                        ))}
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
+                            PACKAGE
+                          </span>
+                          <select
+                            value={editForm.package}
+                            onChange={(event) =>
+                              setEditForm((current) => ({ ...current, package: event.target.value }))
+                            }
                             style={{
-                              padding: '8px 10px',
-                              borderRadius: 6,
+                              width: '100%',
+                              padding: '10px 12px',
+                              background: 'var(--input-bg)',
                               border: '1px solid var(--border)',
-                              background: 'transparent',
-                              fontSize: 11,
+                              borderRadius: 4,
+                              color: 'var(--text)',
+                              fontSize: 13,
                               fontFamily: 'var(--font-mono)',
-                              cursor: 'pointer',
+                              boxSizing: 'border-box',
                             }}
                           >
-                            TOKEN USAGE
-                          </button>
-                        </td>
-                      </tr>
+                            <option value="foundation">foundation</option>
+                            <option value="pro">pro</option>
+                          </select>
+                        </label>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                          gap: 14,
+                        }}
+                      >
+                        <TokenStatCard label="Active users" value={fmtNumber(detail.active_user_count)} />
+                        <TokenStatCard label="Current month total tokens" value={fmtNumber(totalTokens(detail.current_month))} />
+                        <TokenStatCard label="Current month API calls" value={fmtNumber(detail.current_month?.api_calls)} />
+                        <TokenStatCard
+                          label="Current month cost"
+                          value={fmtCost(detail.current_month?.cost_usd)}
+                          accent="var(--accent)"
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Modules</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                            Per-organization access. Org admins cannot change these — grants happen here only.
+                          </div>
+                        </div>
+
+                        {featureError ? (
+                          <div
+                            style={{
+                              background: '#FFF0F0',
+                              border: '1px solid #FFCACA',
+                              borderRadius: 4,
+                              padding: '10px 12px',
+                              fontSize: 12,
+                              color: '#DC3545',
+                            }}
+                          >
+                            {featureError}
+                          </div>
+                        ) : null}
+
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          {MODULES.map(([key, title, description]) => {
+                            const enabled = !!detail.features?.[key]
+                            const busy = featureSaving === key
+                            return (
+                              <div
+                                key={key}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: 12,
+                                  padding: '12px 16px',
+                                  border: '1px solid var(--border)',
+                                  borderRadius: 8,
+                                  background: 'var(--card)',
+                                }}
+                              >
+                                <div>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
+                                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                                    {description}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleFeature(key, !enabled)}
+                                  disabled={busy}
+                                  style={{
+                                    minWidth: 84,
+                                    padding: '9px 14px',
+                                    borderRadius: 999,
+                                    border: enabled ? '1px solid var(--accent)' : '1px solid var(--border)',
+                                    background: enabled ? 'var(--accent)' : 'transparent',
+                                    color: enabled ? '#FFFFFF' : 'var(--text-muted)',
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    fontFamily: 'var(--font-mono)',
+                                    cursor: busy ? 'wait' : 'pointer',
+                                  }}
+                                >
+                                  {busy ? '...' : enabled ? 'Enabled' : 'Disabled'}
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {editTab === 'ai_models' ? (
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Select which catalog models this organization can use in workflow settings.
+                      </div>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        {aiModels.filter((row) => row.is_active).map((model) => {
+                          const checked = editForm.allowed_ai_models.includes(model.model_id)
+                          return (
+                            <label
+                              key={model.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'start',
+                                gap: 10,
+                                padding: '10px 12px',
+                                border: '1px solid var(--border)',
+                                borderRadius: 8,
+                                background: 'var(--card)',
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) =>
+                                  setEditForm((current) => ({
+                                    ...current,
+                                    allowed_ai_models: event.target.checked
+                                      ? [...current.allowed_ai_models, model.model_id]
+                                      : current.allowed_ai_models.filter((value) => value !== model.model_id),
+                                  }))
+                                }
+                              />
+                              <div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+                                  {model.display_name}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                  {model.model_id} · {model.provider} · in ${Number(model.input_price).toFixed(4)} / out ${Number(model.output_price).toFixed(4)}
+                                </div>
+                              </div>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {editTab === 'cost' ? (
+                    <div style={{ display: 'grid', gap: 12 }}>
+                      <div style={{ display: 'grid', gap: 12 }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Monthly stored costs</div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                {['Month', 'Input', 'Output', 'API calls', 'Tool calls', 'Cost'].map((header) => (
+                                  <th
+                                    key={header}
+                                    style={{
+                                      textAlign: header === 'Month' ? 'left' : 'right',
+                                      padding: '10px 12px',
+                                      fontSize: 11,
+                                      color: 'var(--text-muted)',
+                                      fontWeight: 600,
+                                      letterSpacing: '0.06em',
+                                    }}
+                                  >
+                                    {header.toUpperCase()}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detail.monthly_history.map((row) => (
+                                <tr key={row.month_start} style={{ borderBottom: '1px solid #F1EFEA' }}>
+                                  <td style={{ padding: '12px', fontSize: 13, color: 'var(--text)' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => openMonthBreakdown(row)}
+                                      style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        padding: 0,
+                                        margin: 0,
+                                        color: 'var(--text)',
+                                        fontSize: 13,
+                                        cursor: 'pointer',
+                                        textDecoration: 'underline',
+                                        textUnderlineOffset: '3px',
+                                      }}
+                                    >
+                                      {fmtMonthLabel(row.month_start)}
+                                    </button>
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                                    {fmtNumber(row.input_tokens)}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                                    {fmtNumber(row.output_tokens)}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                                    {fmtNumber(row.api_calls)}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                                    {fmtNumber(row.tool_calls)}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: '12px',
+                                      textAlign: 'right',
+                                      fontFamily: 'var(--font-mono)',
+                                      fontSize: 12,
+                                      fontWeight: 700,
+                                      color: 'var(--accent)',
+                                    }}
+                                  >
+                                    {fmtCost(row.cost_usd)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gap: 12 }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Users in organization</div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                {['Name', 'Email', 'Role', 'Status', 'This month tokens', 'This month cost', ''].map((header) => (
+                                  <th
+                                    key={header || 'action'}
+                                    style={{
+                                      textAlign:
+                                        header === 'Name' || header === 'Email' || header === 'Role' || header === 'Status'
+                                          ? 'left'
+                                          : 'right',
+                                      padding: '10px 12px',
+                                      fontSize: 11,
+                                      color: 'var(--text-muted)',
+                                      fontWeight: 600,
+                                      letterSpacing: '0.06em',
+                                    }}
+                                  >
+                                    {header ? header.toUpperCase() : ''}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detail.users.map((user) => (
+                                <tr key={user.user_id} style={{ borderBottom: '1px solid #F1EFEA' }}>
+                                  <td style={{ padding: '12px', fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+                                    {user.name}
+                                  </td>
+                                  <td style={{ padding: '12px', fontSize: 12, color: 'var(--text-muted)' }}>{user.email}</td>
+                                  <td style={{ padding: '12px', fontSize: 12, color: 'var(--text)' }}>{user.role}</td>
+                                  <td style={{ padding: '12px', fontSize: 12, color: user.status === 'active' ? 'var(--green)' : 'var(--text-muted)' }}>
+                                    {user.status}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                                    {fmtNumber(totalTokens(user.this_month))}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: '12px',
+                                      textAlign: 'right',
+                                      fontFamily: 'var(--font-mono)',
+                                      fontSize: 12,
+                                      fontWeight: 700,
+                                      color: 'var(--accent)',
+                                    }}
+                                  >
+                                    {fmtCost(user.this_month.cost_usd)}
+                                  </td>
+                                  <td style={{ padding: '12px', textAlign: 'right' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => openUsage(user)}
+                                      style={{
+                                        padding: '8px 10px',
+                                        borderRadius: 6,
+                                        border: '1px solid var(--border)',
+                                        background: 'transparent',
+                                        fontSize: 11,
+                                        fontFamily: 'var(--font-mono)',
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      TOKEN USAGE
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {editTab === 'advanced' ? (
+                  <>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
+                      NOTIFICATION RECIPIENTS
+                    </span>
+                    <textarea
+                      value={editForm.notification_recipients}
+                      onChange={(event) =>
+                        setEditForm((current) => ({
+                          ...current,
+                          notification_recipients: event.target.value,
+                        }))
+                      }
+                      rows={4}
+                      placeholder="one@email.com&#10;two@email.com"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        background: 'var(--input-bg)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 4,
+                        color: 'var(--text)',
+                        fontSize: 13,
+                        fontFamily: 'var(--font-mono)',
+                        boxSizing: 'border-box',
+                        resize: 'vertical',
+                      }}
+                    />
+                  </label>
+
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
+                      SETTINGS JSON
+                    </span>
+                    <textarea
+                      value={editForm.settings}
+                      onChange={(event) =>
+                        setEditForm((current) => ({ ...current, settings: event.target.value }))
+                      }
+                      rows={12}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        background: 'var(--input-bg)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 4,
+                        color: 'var(--text)',
+                        fontSize: 13,
+                        fontFamily: 'var(--font-mono)',
+                        boxSizing: 'border-box',
+                        resize: 'vertical',
+                      }}
+                    />
+                  </label>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: 12,
+                    }}
+                  >
+                    {[
+                      ['Created at', detail.created_at || ''],
+                      ['Updated at', detail.updated_at || ''],
+                      ['TOS version', detail.tos_version || ''],
+                      ['TOS accepted at', detail.tos_accepted_at || ''],
+                      ['TOS accepted by', detail.tos_accepted_by || ''],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        style={{
+                          padding: '10px 12px',
+                          border: '1px solid var(--border)',
+                          borderRadius: 6,
+                          background: 'var(--card)',
+                        }}
+                      >
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
+                          {label.toUpperCase()}
+                        </div>
+                        <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text)', fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }}>
+                          {value || '—'}
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  </div>
+                  </>
+                  ) : null}
+                </>
+              ) : null}
+            </form>
+
           </>
         ) : (
           <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Select an organization to load usage.</div>
@@ -997,6 +1696,36 @@ export default function OrganizationsPage() {
           }}
         />
       )}
+
+      {monthBreakdown && (
+        <MonthlyUserBreakdownModal
+          monthLabel={fmtMonthLabel(monthBreakdown.month_start)}
+          data={monthBreakdownData}
+          error={monthBreakdownError}
+          loading={monthBreakdownLoading}
+          onClose={() => {
+            setMonthBreakdown(null)
+            setMonthBreakdownData(null)
+            setMonthBreakdownError('')
+            setMonthBreakdownLoading(false)
+          }}
+        />
+      )}
+
+      {confirmDeleteOpen && detail ? (
+        <ConfirmModal
+          title={`Delete "${detail.name}"?`}
+          message="This removes the organization and cascades related data. This cannot be undone."
+          confirmLabel={deletingOrg ? 'Deleting...' : 'Delete'}
+          danger
+          onConfirm={handleDeleteOrganization}
+          onCancel={() => {
+            if (!deletingOrg) {
+              setConfirmDeleteOpen(false)
+            }
+          }}
+        />
+      ) : null}
     </div>
   )
 }

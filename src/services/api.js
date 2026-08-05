@@ -99,6 +99,21 @@ export async function getOrganizationDetail(token, organizationId) {
   return request(`/api/organizations/${organizationId}`, { token })
 }
 
+export async function updateOrganization(token, organizationId, payload) {
+  return request(`/api/organizations/${organizationId}`, {
+    method: 'PUT',
+    token,
+    body: payload,
+  })
+}
+
+export async function deleteOrganization(token, organizationId) {
+  return request(`/api/organizations/${organizationId}`, {
+    method: 'DELETE',
+    token,
+  })
+}
+
 export async function updateOrganizationFeatures(token, organizationId, changes) {
   return request(`/api/organizations/${organizationId}/features`, {
     token,
@@ -109,4 +124,35 @@ export async function updateOrganizationFeatures(token, organizationId, changes)
 
 export async function getOrganizationUserTokenUsage(token, organizationId, userId) {
   return request(`/api/organizations/${organizationId}/users/${userId}/token-usage`, { token })
+}
+
+export async function getOrganizationMonthlyUserBreakdown(token, organizationId, monthStart) {
+  return request(`/api/organizations/${organizationId}/monthly-history/${monthStart}/users`, { token })
+}
+
+export async function listAIModels(token) {
+  return request('/api/ai-models', { token })
+}
+
+export async function createAIModel(token, payload) {
+  return request('/api/ai-models', {
+    method: 'POST',
+    token,
+    body: payload,
+  })
+}
+
+export async function updateAIModel(token, aiModelId, payload) {
+  return request(`/api/ai-models/${aiModelId}`, {
+    method: 'PUT',
+    token,
+    body: payload,
+  })
+}
+
+export async function deleteAIModel(token, aiModelId) {
+  return request(`/api/ai-models/${aiModelId}`, {
+    method: 'DELETE',
+    token,
+  })
 }
