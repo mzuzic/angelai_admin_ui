@@ -543,6 +543,7 @@ export default function OrganizationsPage() {
     ['marketing', 'Marketing', 'Marketing emails + Market Insights'],
     ['customer_service', 'Customer Service', 'Follow-up dashboards'],
     ['scripts', 'Scripts', 'Rep call-script assignments'],
+    ['quickbooks', 'QuickBooks', 'Built-in QuickBooks receivables dashboard'],
   ]
   const [featureSaving, setFeatureSaving] = useState('')
   const [featureError, setFeatureError] = useState('')
@@ -551,7 +552,7 @@ export default function OrganizationsPage() {
     setFeatureSaving(name)
     setFeatureError('')
     try {
-      const res = await updateOrganizationFeatures(token, selectedOrgId, { [name]: value })
+      const res = await updateOrganizationFeatures(selectedOrgId, { [name]: value })
       setDetail((d) => (d ? { ...d, features: res.features } : d))
     } catch (err) {
       setFeatureError(err.message || 'Failed to update module access')
@@ -563,7 +564,7 @@ export default function OrganizationsPage() {
   async function loadOrganizations(preferredOrgId) {
     setLoading(true)
     try {
-      const rows = await listOrganizations(token)
+      const rows = await listOrganizations()
       setOrganizations(rows)
       setError('')
       if (!rows.length) {
@@ -588,7 +589,7 @@ export default function OrganizationsPage() {
     }
     setDetailLoading(true)
     try {
-      const data = await getOrganizationDetail(token, orgId)
+      const data = await getOrganizationDetail(orgId)
       setDetail(data)
       setDetailError('')
     } catch (err) {
@@ -604,7 +605,7 @@ export default function OrganizationsPage() {
   }, [token])
 
   useEffect(() => {
-    listAIModels(token).then(setAiModels).catch(() => {})
+    listAIModels().then(setAiModels).catch(() => {})
   }, [token])
 
   useEffect(() => {
@@ -649,7 +650,7 @@ export default function OrganizationsPage() {
     setUsageData(null)
     setUsageError('')
     try {
-      const data = await getOrganizationUserTokenUsage(token, selectedOrgId, user.user_id)
+      const data = await getOrganizationUserTokenUsage(selectedOrgId, user.user_id)
       setUsageData(data)
     } catch (err) {
       setUsageError(err.message || 'Failed to load user token usage')
@@ -667,7 +668,7 @@ export default function OrganizationsPage() {
     setMonthBreakdownData(null)
     setMonthBreakdownError('')
     try {
-      const data = await getOrganizationMonthlyUserBreakdown(token, selectedOrgId, row.month_start)
+      const data = await getOrganizationMonthlyUserBreakdown(selectedOrgId, row.month_start)
       setMonthBreakdownData(data)
     } catch (err) {
       setMonthBreakdownError(err.message || 'Failed to load monthly user breakdown')
@@ -682,7 +683,7 @@ export default function OrganizationsPage() {
     setCreateError('')
     setCreateNotice('')
     try {
-      const created = await createOrganization(token, {
+      const created = await createOrganization({
         name: createForm.name.trim(),
         admin_email: createForm.admin_email.trim(),
       })
@@ -716,7 +717,7 @@ export default function OrganizationsPage() {
     }
 
     try {
-      const updated = await updateOrganization(token, selectedOrgId, {
+      const updated = await updateOrganization(selectedOrgId, {
         name: editForm.name.trim(),
         slug: editForm.slug.trim(),
         client_code: editForm.client_code.trim() || null,
@@ -765,7 +766,7 @@ export default function OrganizationsPage() {
     setEditError('')
     setEditNotice('')
     try {
-      await deleteOrganization(token, selectedOrgId)
+      await deleteOrganization(selectedOrgId)
       const remaining = organizations.filter((row) => row.id !== selectedOrgId)
       setOrganizations(remaining)
       const nextOrgId = remaining[0]?.id || null
