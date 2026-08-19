@@ -185,6 +185,10 @@ export async function listOrganizations() {
   return request('/api/organizations')
 }
 
+export async function listScrapeDataStates() {
+  return request('/api/organizations/scrape-data-states')
+}
+
 export async function createOrganization(payload) {
   return request('/api/organizations', {
     method: 'POST',

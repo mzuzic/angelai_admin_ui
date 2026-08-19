@@ -10,6 +10,7 @@ import {
   updateOrganization,
   getOrganizationUserTokenUsage,
   listOrganizations,
+  listScrapeDataStates,
 } from '../services/api.js'
 import ConfirmModal from '../components/ConfirmModal.jsx'
 import { useAuth } from '../contexts/auth-context.js'
@@ -537,6 +538,8 @@ export default function OrganizationsPage() {
   const [deletingOrg, setDeletingOrg] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [aiModels, setAiModels] = useState([])
+  const [scrapeDataStates, setScrapeDataStates] = useState([])
+  const [scrapeDataStatesError, setScrapeDataStatesError] = useState('')
   const [editTab, setEditTab] = useState('profile')
   const MODULES = [
     ['operations', 'Operations', 'Order pipeline, Metrc, credit, Route Planner — off by default'],
@@ -609,6 +612,18 @@ export default function OrganizationsPage() {
   }, [token])
 
   useEffect(() => {
+    listScrapeDataStates()
+      .then((payload) => {
+        setScrapeDataStates(Array.isArray(payload?.states) ? payload.states : [])
+        setScrapeDataStatesError('')
+      })
+      .catch((err) => {
+        setScrapeDataStates([])
+        setScrapeDataStatesError(err.message || 'Failed to load shared scrape states')
+      })
+  }, [token])
+
+  useEffect(() => {
     loadDetail(selectedOrgId)
   }, [selectedOrgId, token])
 
@@ -630,9 +645,40 @@ export default function OrganizationsPage() {
       postal_code: detail.postal_code || '',
       allowed_ai_models: detail.allowed_ai_models || [],
       notification_recipients: (detail.notification_recipients || []).join('\n'),
+      scrape_states: Array.isArray(detail.settings?.leafly_states) ? detail.settings.leafly_states : [],
       settings: JSON.stringify(detail.settings || {}, null, 2),
     })
   }, [detail])
+
+  function updateSettingsDraft(updater) {
+    setEditForm((current) => {
+      let settings = {}
+      try {
+        settings = JSON.parse(current.settings || '{}')
+      } catch {
+        settings = detail?.settings || {}
+      }
+      const nextSettings = updater({ ...settings })
+      return {
+        ...current,
+        scrape_states: Array.isArray(nextSettings.leafly_states) ? nextSettings.leafly_states : [],
+        settings: JSON.stringify(nextSettings, null, 2),
+      }
+    })
+  }
+
+  function toggleScrapeState(state, checked) {
+    updateSettingsDraft((settings) => {
+      const current = Array.isArray(settings.leafly_states) ? settings.leafly_states : []
+      const next = checked
+        ? [...current, state]
+        : current.filter((value) => value !== state)
+      settings.leafly_states = scrapeDataStates
+        .map((row) => row.value)
+        .filter((value) => next.includes(value))
+      return settings
+    })
+  }
 
   async function handleRefresh() {
     await loadOrganizations(selectedOrgId)
@@ -715,6 +761,10 @@ export default function OrganizationsPage() {
       setSavingOrg(false)
       return
     }
+    const availableScrapeStates = scrapeDataStates.map((row) => row.value)
+    parsedSettings.leafly_states = Array.isArray(editForm.scrape_states)
+      ? editForm.scrape_states.filter((value) => availableScrapeStates.includes(value))
+      : []
 
     try {
       const updated = await updateOrganization(selectedOrgId, {
@@ -1189,6 +1239,7 @@ export default function OrganizationsPage() {
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {[
                       ['profile', 'Profile'],
+                      ['scrape_data', 'Scrape Data'],
                       ['ai_models', 'AI Models'],
                       ['cost', 'Cost'],
                       ['advanced', 'Advanced'],
@@ -1375,6 +1426,67 @@ export default function OrganizationsPage() {
                             )
                           })}
                         </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {editTab === 'scrape_data' ? (
+                    <div style={{ display: 'grid', gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Shared scrape data states</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                          Controls which shared scraped-market datasets this organization can read.
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                          gap: 8,
+                        }}
+                      >
+                        {scrapeDataStates.map(({ value, label }) => {
+                          const checked = editForm.scrape_states.includes(value)
+                          return (
+                            <label
+                              key={value}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '10px 12px',
+                                border: '1px solid var(--border)',
+                                borderRadius: 8,
+                                background: checked ? '#FFF7F0' : 'var(--card)',
+                                color: 'var(--text)',
+                                fontSize: 13,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => toggleScrapeState(value, event.target.checked)}
+                              />
+                              <span>{label}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+
+                      {scrapeDataStatesError ? (
+                        <div style={{ fontSize: 12, color: '#B42318' }}>{scrapeDataStatesError}</div>
+                      ) : null}
+
+                      {!scrapeDataStates.length && !scrapeDataStatesError ? (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          No AngelHQ shared scrape states are configured.
+                        </div>
+                      ) : null}
+
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        settings.leafly_states: {editForm.scrape_states.length ? editForm.scrape_states.join(', ') : 'none'}
                       </div>
                     </div>
                   ) : null}
@@ -1625,9 +1737,19 @@ export default function OrganizationsPage() {
                     </span>
                     <textarea
                       value={editForm.settings}
-                      onChange={(event) =>
-                        setEditForm((current) => ({ ...current, settings: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        const nextValue = event.target.value
+                        setEditForm((current) => {
+                          let scrapeStates = current.scrape_states
+                          try {
+                            const parsed = JSON.parse(nextValue || '{}')
+                            scrapeStates = Array.isArray(parsed.leafly_states) ? parsed.leafly_states : []
+                          } catch {
+                            // Keep the last valid checkbox state while JSON is being edited.
+                          }
+                          return { ...current, settings: nextValue, scrape_states: scrapeStates }
+                        })
+                      }}
                       rows={12}
                       style={{
                         width: '100%',
