@@ -42,7 +42,9 @@ export default function AIModelsPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadModels()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   function normalizePayload(form, includeModelId = false) {

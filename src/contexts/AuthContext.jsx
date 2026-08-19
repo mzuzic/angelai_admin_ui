@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
         setUser(null)
       },
     })
-  }, [])
+  }, [token])
 
   useEffect(() => {
     let active = true

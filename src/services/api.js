@@ -82,18 +82,14 @@ async function request(path, { method = 'GET', body, auth = true, retryOn401 = t
   })
 
   if (response.status === 401 && auth && retryOn401 && path !== '/api/auth/refresh') {
-    try {
-      const nextToken = await refreshAccessToken()
-      return request(path, {
-        method,
-        body,
-        auth,
-        retryOn401: false,
-        tokenOverride: nextToken,
-      })
-    } catch (error) {
-      throw error
-    }
+    const nextToken = await refreshAccessToken()
+    return request(path, {
+      method,
+      body,
+      auth,
+      retryOn401: false,
+      tokenOverride: nextToken,
+    })
   }
 
   if (!response.ok) {
@@ -183,6 +179,10 @@ export async function setAdminUserPassword(adminUserId, newPassword) {
 
 export async function listOrganizations() {
   return request('/api/organizations')
+}
+
+export async function listScrapeDataStates() {
+  return request('/api/organizations/scrape-data-states')
 }
 
 export async function createOrganization(payload) {
