@@ -646,6 +646,7 @@ export default function OrganizationsPage() {
       allowed_ai_models: detail.allowed_ai_models || [],
       notification_recipients: (detail.notification_recipients || []).join('\n'),
       scrape_states: Array.isArray(detail.settings?.leafly_states) ? detail.settings.leafly_states : [],
+      oos_states: Array.isArray(detail.settings?.oos_states) ? detail.settings.oos_states : [],
       settings: JSON.stringify(detail.settings || {}, null, 2),
     })
   }, [detail])
@@ -662,8 +663,22 @@ export default function OrganizationsPage() {
       return {
         ...current,
         scrape_states: Array.isArray(nextSettings.leafly_states) ? nextSettings.leafly_states : [],
+        oos_states: Array.isArray(nextSettings.oos_states) ? nextSettings.oos_states : [],
         settings: JSON.stringify(nextSettings, null, 2),
       }
+    })
+  }
+
+  function toggleOosState(state, checked) {
+    updateSettingsDraft((settings) => {
+      const current = Array.isArray(settings.oos_states) ? settings.oos_states : []
+      const next = checked
+        ? [...current, state]
+        : current.filter((value) => value !== state)
+      settings.oos_states = scrapeDataStates
+        .map((row) => row.value)
+        .filter((value) => next.includes(value))
+      return settings
     })
   }
 
@@ -764,6 +779,9 @@ export default function OrganizationsPage() {
     const availableScrapeStates = scrapeDataStates.map((row) => row.value)
     parsedSettings.leafly_states = Array.isArray(editForm.scrape_states)
       ? editForm.scrape_states.filter((value) => availableScrapeStates.includes(value))
+      : []
+    parsedSettings.oos_states = Array.isArray(editForm.oos_states)
+      ? editForm.oos_states.filter((value) => availableScrapeStates.includes(value))
       : []
 
     try {
@@ -1239,7 +1257,7 @@ export default function OrganizationsPage() {
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {[
                       ['profile', 'Profile'],
-                      ['scrape_data', 'Scrape Data'],
+                      ['scrape_data', 'Data Access'],
                       ['ai_models', 'AI Models'],
                       ['cost', 'Cost'],
                       ['advanced', 'Advanced'],
@@ -1431,7 +1449,7 @@ export default function OrganizationsPage() {
                   ) : null}
 
                   {editTab === 'scrape_data' ? (
-                    <div style={{ display: 'grid', gap: 12 }}>
+                    <div style={{ display: 'grid', gap: 24 }}>
                       <div>
                         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Shared scrape data states</div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -1487,6 +1505,83 @@ export default function OrganizationsPage() {
 
                       <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                         settings.leafly_states: {editForm.scrape_states.length ? editForm.scrape_states.join(', ') : 'none'}
+                      </div>
+
+                      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20, display: 'grid', gap: 12 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Out-of-stock access</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                              Enables OOS registry tables and limits them to selected states.
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleFeature('out_of_stock', !detail.features?.out_of_stock)}
+                            disabled={featureSaving === 'out_of_stock'}
+                            style={{
+                              minWidth: 84,
+                              padding: '9px 14px',
+                              borderRadius: 999,
+                              border: detail.features?.out_of_stock ? '1px solid var(--accent)' : '1px solid var(--border)',
+                              background: detail.features?.out_of_stock ? 'var(--accent)' : 'transparent',
+                              color: detail.features?.out_of_stock ? '#FFFFFF' : 'var(--text-muted)',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              fontFamily: 'var(--font-mono)',
+                              cursor: featureSaving === 'out_of_stock' ? 'wait' : 'pointer',
+                            }}
+                          >
+                            {featureSaving === 'out_of_stock' ? '...' : detail.features?.out_of_stock ? 'Enabled' : 'Disabled'}
+                          </button>
+                        </div>
+
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                            gap: 8,
+                          }}
+                        >
+                          {scrapeDataStates.map(({ value, label }) => {
+                            const checked = editForm.oos_states.includes(value)
+                            return (
+                              <label
+                                key={`oos-${value}`}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                  padding: '10px 12px',
+                                  border: '1px solid var(--border)',
+                                  borderRadius: 8,
+                                  background: checked ? '#FFF7F0' : 'var(--card)',
+                                  color: 'var(--text)',
+                                  fontSize: 13,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(event) => toggleOosState(value, event.target.checked)}
+                                />
+                                <span>{label}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                          settings.oos_states: {editForm.oos_states.length ? editForm.oos_states.join(', ') : 'none'}
+                        </div>
                       </div>
                     </div>
                   ) : null}
@@ -1741,13 +1836,15 @@ export default function OrganizationsPage() {
                         const nextValue = event.target.value
                         setEditForm((current) => {
                           let scrapeStates = current.scrape_states
+                          let oosStates = current.oos_states
                           try {
                             const parsed = JSON.parse(nextValue || '{}')
                             scrapeStates = Array.isArray(parsed.leafly_states) ? parsed.leafly_states : []
+                            oosStates = Array.isArray(parsed.oos_states) ? parsed.oos_states : []
                           } catch {
                             // Keep the last valid checkbox state while JSON is being edited.
                           }
-                          return { ...current, settings: nextValue, scrape_states: scrapeStates }
+                          return { ...current, settings: nextValue, scrape_states: scrapeStates, oos_states: oosStates }
                         })
                       }}
                       rows={12}
