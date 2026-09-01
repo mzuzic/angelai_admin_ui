@@ -30,6 +30,8 @@ function totalTokens(stats) {
   return (stats?.input_tokens || 0) + (stats?.output_tokens || 0)
 }
 
+const OOS_SUPPORTED_STATES = ['illinois', 'massachusetts', 'new-jersey']
+
 function fmtMonthLabel(value) {
   return new Date(value).toLocaleDateString(undefined, {
     year: 'numeric',
@@ -550,6 +552,7 @@ export default function OrganizationsPage() {
   ]
   const [featureSaving, setFeatureSaving] = useState('')
   const [featureError, setFeatureError] = useState('')
+  const oosStateOptions = scrapeDataStates.filter((row) => OOS_SUPPORTED_STATES.includes(row.value))
 
   async function toggleFeature(name, value) {
     setFeatureSaving(name)
@@ -646,7 +649,9 @@ export default function OrganizationsPage() {
       allowed_ai_models: detail.allowed_ai_models || [],
       notification_recipients: (detail.notification_recipients || []).join('\n'),
       scrape_states: Array.isArray(detail.settings?.leafly_states) ? detail.settings.leafly_states : [],
-      oos_states: Array.isArray(detail.settings?.oos_states) ? detail.settings.oos_states : [],
+      oos_states: Array.isArray(detail.settings?.oos_states)
+        ? detail.settings.oos_states.filter((value) => OOS_SUPPORTED_STATES.includes(value))
+        : [],
       settings: JSON.stringify(detail.settings || {}, null, 2),
     })
   }, [detail])
@@ -663,7 +668,9 @@ export default function OrganizationsPage() {
       return {
         ...current,
         scrape_states: Array.isArray(nextSettings.leafly_states) ? nextSettings.leafly_states : [],
-        oos_states: Array.isArray(nextSettings.oos_states) ? nextSettings.oos_states : [],
+        oos_states: Array.isArray(nextSettings.oos_states)
+          ? nextSettings.oos_states.filter((value) => OOS_SUPPORTED_STATES.includes(value))
+          : [],
         settings: JSON.stringify(nextSettings, null, 2),
       }
     })
@@ -675,7 +682,7 @@ export default function OrganizationsPage() {
       const next = checked
         ? [...current, state]
         : current.filter((value) => value !== state)
-      settings.oos_states = scrapeDataStates
+      settings.oos_states = oosStateOptions
         .map((row) => row.value)
         .filter((value) => next.includes(value))
       return settings
@@ -781,8 +788,9 @@ export default function OrganizationsPage() {
       ? editForm.scrape_states.filter((value) => availableScrapeStates.includes(value))
       : []
     parsedSettings.oos_states = Array.isArray(editForm.oos_states)
-      ? editForm.oos_states.filter((value) => availableScrapeStates.includes(value))
+      ? editForm.oos_states.filter((value) => OOS_SUPPORTED_STATES.includes(value))
       : []
+    const oosEnabled = parsedSettings.oos_states.length > 0
 
     try {
       const updated = await updateOrganization(selectedOrgId, {
@@ -803,7 +811,10 @@ export default function OrganizationsPage() {
           .filter(Boolean),
         settings: parsedSettings,
       })
-      setDetail(updated)
+      const nextFeatures = oosEnabled === !!detail.features?.out_of_stock
+        ? null
+        : await updateOrganizationFeatures(selectedOrgId, { out_of_stock: oosEnabled })
+      setDetail(nextFeatures ? { ...updated, features: nextFeatures.features } : updated)
       setOrganizations((current) =>
         current.map((row) =>
           row.id === updated.id
@@ -1512,35 +1523,16 @@ export default function OrganizationsPage() {
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'space-between',
+                            justifyContent: 'flex-start',
                             gap: 12,
                           }}
                         >
                           <div>
                             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Out-of-stock access</div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                              Enables OOS registry tables and limits them to selected states.
+                              Select IL, MA, or NJ to enable OOS data for those states only. No selected states disables OOS for the org.
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => toggleFeature('out_of_stock', !detail.features?.out_of_stock)}
-                            disabled={featureSaving === 'out_of_stock'}
-                            style={{
-                              minWidth: 84,
-                              padding: '9px 14px',
-                              borderRadius: 999,
-                              border: detail.features?.out_of_stock ? '1px solid var(--accent)' : '1px solid var(--border)',
-                              background: detail.features?.out_of_stock ? 'var(--accent)' : 'transparent',
-                              color: detail.features?.out_of_stock ? '#FFFFFF' : 'var(--text-muted)',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              fontFamily: 'var(--font-mono)',
-                              cursor: featureSaving === 'out_of_stock' ? 'wait' : 'pointer',
-                            }}
-                          >
-                            {featureSaving === 'out_of_stock' ? '...' : detail.features?.out_of_stock ? 'Enabled' : 'Disabled'}
-                          </button>
                         </div>
 
                         <div
@@ -1550,7 +1542,7 @@ export default function OrganizationsPage() {
                             gap: 8,
                           }}
                         >
-                          {scrapeDataStates.map(({ value, label }) => {
+                          {oosStateOptions.map(({ value, label }) => {
                             const checked = editForm.oos_states.includes(value)
                             return (
                               <label
