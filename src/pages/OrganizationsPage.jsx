@@ -30,7 +30,7 @@ function totalTokens(stats) {
   return (stats?.input_tokens || 0) + (stats?.output_tokens || 0)
 }
 
-const OOS_SUPPORTED_STATES = ['illinois', 'massachusetts', 'new-jersey']
+const OOS_SUPPORTED_STATES = ['illinois', 'massachusetts', 'michigan', 'minnesota', 'new-jersey', 'ohio']
 
 function fmtMonthLabel(value) {
   return new Date(value).toLocaleDateString(undefined, {
@@ -1530,7 +1530,7 @@ export default function OrganizationsPage() {
                           <div>
                             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Out-of-stock access</div>
                             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                              Select IL, MA, or NJ to enable OOS data for those states only. No selected states disables OOS for the org.
+                              Select states to enable OOS data for those states only. No selected states disables OOS for the org.
                             </div>
                           </div>
                         </div>
