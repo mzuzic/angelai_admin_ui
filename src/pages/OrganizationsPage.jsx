@@ -30,7 +30,15 @@ function totalTokens(stats) {
   return (stats?.input_tokens || 0) + (stats?.output_tokens || 0)
 }
 
-const OOS_SUPPORTED_STATES = ['illinois', 'massachusetts', 'michigan', 'minnesota', 'new-jersey', 'ohio']
+const OOS_STATE_OPTIONS = [
+  { value: 'illinois', label: 'Illinois' },
+  { value: 'massachusetts', label: 'Massachusetts' },
+  { value: 'michigan', label: 'Michigan' },
+  { value: 'minnesota', label: 'Minnesota' },
+  { value: 'new-jersey', label: 'New Jersey' },
+  { value: 'ohio', label: 'Ohio' },
+]
+const OOS_SUPPORTED_STATES = OOS_STATE_OPTIONS.map((row) => row.value)
 
 function fmtMonthLabel(value) {
   return new Date(value).toLocaleDateString(undefined, {
@@ -552,7 +560,7 @@ export default function OrganizationsPage() {
   ]
   const [featureSaving, setFeatureSaving] = useState('')
   const [featureError, setFeatureError] = useState('')
-  const oosStateOptions = scrapeDataStates.filter((row) => OOS_SUPPORTED_STATES.includes(row.value))
+  const oosStateOptions = OOS_STATE_OPTIONS
 
   async function toggleFeature(name, value) {
     setFeatureSaving(name)
