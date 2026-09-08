@@ -548,6 +548,7 @@ export default function OrganizationsPage() {
     ['customer_service', 'Customer Service', 'Follow-up dashboards'],
     ['scripts', 'Scripts', 'Rep call-script assignments'],
     ['quickbooks', 'QuickBooks', 'Built-in QuickBooks receivables dashboard'],
+    ['edge', 'Dispensary Edge', 'Dispensary competitive intelligence — off by default'],
   ]
   const [featureSaving, setFeatureSaving] = useState('')
   const [featureError, setFeatureError] = useState('')
