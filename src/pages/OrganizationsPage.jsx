@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   createOrganization,
@@ -29,16 +29,6 @@ function fmtCost(value) {
 function totalTokens(stats) {
   return (stats?.input_tokens || 0) + (stats?.output_tokens || 0)
 }
-
-const OOS_STATE_OPTIONS = [
-  { value: 'illinois', label: 'Illinois' },
-  { value: 'massachusetts', label: 'Massachusetts' },
-  { value: 'michigan', label: 'Michigan' },
-  { value: 'minnesota', label: 'Minnesota' },
-  { value: 'new-jersey', label: 'New Jersey' },
-  { value: 'ohio', label: 'Ohio' },
-]
-const OOS_SUPPORTED_STATES = OOS_STATE_OPTIONS.map((row) => row.value)
 
 function fmtMonthLabel(value) {
   return new Date(value).toLocaleDateString(undefined, {
@@ -549,6 +539,7 @@ export default function OrganizationsPage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [aiModels, setAiModels] = useState([])
   const [scrapeDataStates, setScrapeDataStates] = useState([])
+  const [oosDataStates, setOosDataStates] = useState([])
   const [scrapeDataStatesError, setScrapeDataStatesError] = useState('')
   const [editTab, setEditTab] = useState('profile')
   const MODULES = [
@@ -560,7 +551,11 @@ export default function OrganizationsPage() {
   ]
   const [featureSaving, setFeatureSaving] = useState('')
   const [featureError, setFeatureError] = useState('')
-  const oosStateOptions = OOS_STATE_OPTIONS
+  const oosStateOptions = oosDataStates
+  const oosSupportedStates = useMemo(
+    () => oosStateOptions.map((row) => row.value),
+    [oosStateOptions],
+  )
 
   async function toggleFeature(name, value) {
     setFeatureSaving(name)
@@ -626,10 +621,12 @@ export default function OrganizationsPage() {
     listScrapeDataStates()
       .then((payload) => {
         setScrapeDataStates(Array.isArray(payload?.states) ? payload.states : [])
+        setOosDataStates(Array.isArray(payload?.oos_states) ? payload.oos_states : [])
         setScrapeDataStatesError('')
       })
       .catch((err) => {
         setScrapeDataStates([])
+        setOosDataStates([])
         setScrapeDataStatesError(err.message || 'Failed to load shared scrape states')
       })
   }, [token])
@@ -658,11 +655,11 @@ export default function OrganizationsPage() {
       notification_recipients: (detail.notification_recipients || []).join('\n'),
       scrape_states: Array.isArray(detail.settings?.leafly_states) ? detail.settings.leafly_states : [],
       oos_states: Array.isArray(detail.settings?.oos_states)
-        ? detail.settings.oos_states.filter((value) => OOS_SUPPORTED_STATES.includes(value))
+        ? detail.settings.oos_states.filter((value) => oosSupportedStates.includes(value))
         : [],
       settings: JSON.stringify(detail.settings || {}, null, 2),
     })
-  }, [detail])
+  }, [detail, oosSupportedStates])
 
   function updateSettingsDraft(updater) {
     setEditForm((current) => {
@@ -677,7 +674,7 @@ export default function OrganizationsPage() {
         ...current,
         scrape_states: Array.isArray(nextSettings.leafly_states) ? nextSettings.leafly_states : [],
         oos_states: Array.isArray(nextSettings.oos_states)
-          ? nextSettings.oos_states.filter((value) => OOS_SUPPORTED_STATES.includes(value))
+          ? nextSettings.oos_states.filter((value) => oosSupportedStates.includes(value))
           : [],
         settings: JSON.stringify(nextSettings, null, 2),
       }
@@ -796,7 +793,7 @@ export default function OrganizationsPage() {
       ? editForm.scrape_states.filter((value) => availableScrapeStates.includes(value))
       : []
     parsedSettings.oos_states = Array.isArray(editForm.oos_states)
-      ? editForm.oos_states.filter((value) => OOS_SUPPORTED_STATES.includes(value))
+      ? editForm.oos_states.filter((value) => oosSupportedStates.includes(value))
       : []
     const oosEnabled = parsedSettings.oos_states.length > 0
 
