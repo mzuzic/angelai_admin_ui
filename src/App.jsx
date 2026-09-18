@@ -6,6 +6,7 @@ import AIModelsPage from './pages/AIModelsPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import OrganizationsPage from './pages/OrganizationsPage.jsx'
+import ScrapingRegistryPage from './pages/ScrapingRegistryPage.jsx'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth()
@@ -36,6 +37,10 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/scraping-registry"
+        element={<ProtectedRoute><AppShell><ScrapingRegistryPage /></AppShell></ProtectedRoute>}
+      />
       <Route
         path="/"
         element={
