@@ -251,3 +251,22 @@ export async function deleteAIModel(aiModelId) {
     method: 'DELETE',
   })
 }
+
+export const listScrapeRegistryOverview = () => request('/api/scraping-registry/overview')
+export const listScrapeTargets = (state = '') => request(`/api/scraping-registry/targets${state ? `?state=${encodeURIComponent(state)}` : ''}`)
+export const listPublicRegistryStores = (state) => request(`/api/scraping-registry/public-records?state=${encodeURIComponent(state)}`)
+export const listScrapePlatforms = () => request('/api/scraping-registry/platforms')
+export const listRegistrySources = () => request('/api/scraping-registry/sources')
+export const createRegistrySource = (body) => request('/api/scraping-registry/sources', { method: 'POST', body })
+export const updateRegistrySource = (id, body) => request(`/api/scraping-registry/sources/${id}`, { method: 'PUT', body })
+export const deleteRegistrySource = (id) => request(`/api/scraping-registry/sources/${id}`, { method: 'DELETE' })
+export const refreshRegistrySource = (id) => request(`/api/scraping-registry/sources/${id}/refresh`, { method: 'POST' })
+export const exportScrapeRegistry = (state, targetIds) => request('/api/scraping-registry/export', {
+  method: 'POST', body: { state, target_ids: targetIds },
+})
+export const importScrapeRegistry = (body) => request('/api/scraping-registry/import', { method: 'POST', body })
+export const createScrapeTarget = (body) => request('/api/scraping-registry/targets', { method: 'POST', body })
+export const updateScrapeTarget = (id, body) => request(`/api/scraping-registry/targets/${id}`, { method: 'PUT', body })
+export const deleteScrapeTarget = (id) => request(`/api/scraping-registry/targets/${id}`, { method: 'DELETE' })
+export const disableScrapeTargets = (targetIds) => request('/api/scraping-registry/targets/bulk-disable', { method: 'POST', body: { target_ids: targetIds } })
+export const softDeleteScrapeTargets = (targetIds) => request('/api/scraping-registry/targets/bulk-delete', { method: 'POST', body: { target_ids: targetIds } })
