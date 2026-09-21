@@ -64,7 +64,7 @@ async function refreshAccessToken() {
   return refreshPromise
 }
 
-async function request(path, { method = 'GET', body, auth = true, retryOn401 = true, tokenOverride } = {}) {
+async function request(path, { method = 'GET', body, formData, auth = true, retryOn401 = true, tokenOverride, responseType = 'json' } = {}) {
   const headers = {}
   const token = auth ? (tokenOverride ?? accessToken) : null
   if (token) {
@@ -77,7 +77,7 @@ async function request(path, { method = 'GET', body, auth = true, retryOn401 = t
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: formData ?? (body !== undefined ? JSON.stringify(body) : undefined),
     credentials: 'include',
   })
 
@@ -87,9 +87,11 @@ async function request(path, { method = 'GET', body, auth = true, retryOn401 = t
       return request(path, {
         method,
         body,
+        formData,
         auth,
         retryOn401: false,
         tokenOverride: nextToken,
+        responseType,
       })
     } catch (error) {
       throw error
@@ -102,6 +104,12 @@ async function request(path, { method = 'GET', body, auth = true, retryOn401 = t
 
   if (response.status === 204) {
     return null
+  }
+
+  if (responseType === 'blob') {
+    const disposition = response.headers.get('Content-Disposition') || ''
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/)
+    return { blob: await response.blob(), filename: filenameMatch ? filenameMatch[1] : null }
   }
 
   return response.json()
@@ -270,3 +278,10 @@ export const updateScrapeTarget = (id, body) => request(`/api/scraping-registry/
 export const deleteScrapeTarget = (id) => request(`/api/scraping-registry/targets/${id}`, { method: 'DELETE' })
 export const disableScrapeTargets = (targetIds) => request('/api/scraping-registry/targets/bulk-disable', { method: 'POST', body: { target_ids: targetIds } })
 export const softDeleteScrapeTargets = (targetIds) => request('/api/scraping-registry/targets/bulk-delete', { method: 'POST', body: { target_ids: targetIds } })
+export const exportScrapeRegistryRegions = (state) => request(`/api/scraping-registry/regions/export?state=${encodeURIComponent(state)}`, { responseType: 'blob' })
+export const importScrapeRegistryRegions = (state, file) => {
+  const formData = new FormData()
+  formData.append('state', state)
+  formData.append('file', file)
+  return request('/api/scraping-registry/regions/import', { method: 'POST', formData })
+}
