@@ -11,7 +11,7 @@ export default function AppShell({ children }) {
   const navItems = [
     { label: 'Overview', path: '/' },
     { label: 'Organizations', path: '/organizations' },
-    { label: 'Scraping Registry', path: '/scraping-registry' },
+    { label: 'Data Registry', path: '/scraping-registry' },
     { label: 'AI Models', path: '/ai-models' },
     { label: 'Admin Users', path: '/admin-users' },
   ]

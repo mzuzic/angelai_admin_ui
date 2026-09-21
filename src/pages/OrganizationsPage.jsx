@@ -628,7 +628,7 @@ export default function OrganizationsPage() {
       .catch((err) => {
         setScrapeDataStates([])
         setOosDataStates([])
-        setScrapeDataStatesError(err.message || 'Failed to load shared scrape states')
+        setScrapeDataStatesError(err.message || 'Failed to load shared market data states')
       })
   }, [token])
 
@@ -1468,9 +1468,9 @@ export default function OrganizationsPage() {
                   {editTab === 'scrape_data' ? (
                     <div style={{ display: 'grid', gap: 24 }}>
                       <div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Shared scrape data states</div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Shared market data states</div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                          Controls which shared scraped-market datasets this organization can read.
+                          Controls which shared market datasets this organization can read.
                         </div>
                       </div>
 
@@ -1516,7 +1516,7 @@ export default function OrganizationsPage() {
 
                       {!scrapeDataStates.length && !scrapeDataStatesError ? (
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          No AngelHQ shared scrape states are configured.
+                          No AngelHQ shared market data states are configured.
                         </div>
                       ) : null}
 
