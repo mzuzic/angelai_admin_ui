@@ -269,6 +269,7 @@ export const createRegistrySource = (body) => request('/api/scraping-registry/so
 export const updateRegistrySource = (id, body) => request(`/api/scraping-registry/sources/${id}`, { method: 'PUT', body })
 export const deleteRegistrySource = (id) => request(`/api/scraping-registry/sources/${id}`, { method: 'DELETE' })
 export const refreshRegistrySource = (id) => request(`/api/scraping-registry/sources/${id}/refresh`, { method: 'POST' })
+export const getRegistryRefreshStatus = (taskId) => request(`/api/scraping-registry/sources/refresh-status/${taskId}`)
 export const exportScrapeRegistry = (state, targetIds) => request('/api/scraping-registry/export', {
   method: 'POST', body: { state, target_ids: targetIds },
 })
