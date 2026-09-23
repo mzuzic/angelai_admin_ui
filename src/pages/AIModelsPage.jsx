@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { createAIModel, deleteAIModel, listAIModels, updateAIModel } from '../services/api.js'
+import { createAIModel, deleteAIModel, listAIModels, listAvailableAIModels, updateAIModel } from '../services/api.js'
 import ConfirmModal from '../components/ConfirmModal.jsx'
 import { useAuth } from '../contexts/auth-context.js'
 
@@ -14,15 +14,21 @@ const EMPTY_FORM = {
   output_price: '0',
   is_active: true,
   sort_order: '0',
+  max_output_tokens: '64000',
+  context_window_tokens: '200000',
+  is_default: false,
+  enable_for_all_organizations: false,
 }
 
 export default function AIModelsPage() {
   const { token } = useAuth()
   const [models, setModels] = useState([])
+  const [availableModels, setAvailableModels] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState(false)
+  const [discovering, setDiscovering] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [deleting, setDeleting] = useState(null)
   const [createForm, setCreateForm] = useState(EMPTY_FORM)
@@ -43,7 +49,34 @@ export default function AIModelsPage() {
 
   useEffect(() => {
     loadModels()
+    discoverModels(false)
   }, [token])
+
+  async function discoverModels(showNotice = true) {
+    setDiscovering(true)
+    setError('')
+    setNotice('')
+    try {
+      const rows = await listAvailableAIModels()
+      setAvailableModels(rows)
+      if (showNotice) {
+        setNotice(`${rows.length} Anthropic models available to select.`)
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to discover Anthropic models')
+    } finally {
+      setDiscovering(false)
+    }
+  }
+
+  function updateModelId(modelId) {
+    const selected = availableModels.find((model) => model.model_id === modelId)
+    setActiveForm((current) => ({
+      ...current,
+      model_id: modelId,
+      display_name: current.display_name || selected?.display_name || '',
+    }))
+  }
 
   function normalizePayload(form, includeModelId = false) {
     const payload = {
@@ -55,6 +88,10 @@ export default function AIModelsPage() {
       output_price: Number(form.output_price || 0),
       is_active: !!form.is_active,
       sort_order: Number(form.sort_order || 0),
+      max_output_tokens: Number(form.max_output_tokens || 64000),
+      context_window_tokens: Number(form.context_window_tokens || 200000),
+      is_default: !!form.is_default,
+      enable_for_all_organizations: !!form.enable_for_all_organizations,
     }
     if (includeModelId) {
       payload.model_id = form.model_id.trim()
@@ -74,6 +111,10 @@ export default function AIModelsPage() {
       output_price: String(model.output_price),
       is_active: model.is_active,
       sort_order: String(model.sort_order),
+      max_output_tokens: String(model.max_output_tokens),
+      context_window_tokens: String(model.context_window_tokens),
+      is_default: model.is_default,
+      enable_for_all_organizations: false,
     })
     setNotice('')
     setError('')
@@ -85,7 +126,7 @@ export default function AIModelsPage() {
     setError('')
     setNotice('')
     try {
-      await createAIModel(token, normalizePayload(createForm, true))
+      await createAIModel(normalizePayload(createForm, true))
       setCreateForm(EMPTY_FORM)
       setNotice('AI model created.')
       await loadModels()
@@ -104,7 +145,7 @@ export default function AIModelsPage() {
     setError('')
     setNotice('')
     try {
-      await updateAIModel(token, editingId, normalizePayload(editForm))
+      await updateAIModel(editingId, normalizePayload(editForm))
       setEditingId(null)
       setNotice('AI model updated.')
       await loadModels()
@@ -123,7 +164,7 @@ export default function AIModelsPage() {
     setError('')
     setNotice('')
     try {
-      await deleteAIModel(token, deleting.id)
+      await deleteAIModel(deleting.id)
       setDeleting(null)
       if (editingId === deleting.id) {
         setEditingId(null)
@@ -139,6 +180,9 @@ export default function AIModelsPage() {
 
   const activeForm = editingId ? editForm : createForm
   const setActiveForm = editingId ? setEditForm : setCreateForm
+  const availableAnthropicModels = availableModels.filter(
+    (available) => !models.some((model) => model.model_id.toLowerCase() === available.model_id.toLowerCase()),
+  )
 
   return (
     <div style={{ display: 'grid', gap: 20 }}>
@@ -173,7 +217,7 @@ export default function AIModelsPage() {
       <section
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(340px, 420px) 1fr',
+          gridTemplateColumns: 'minmax(0, 420px) minmax(0, 1fr)',
           gap: 20,
           alignItems: 'start',
         }}
@@ -194,9 +238,10 @@ export default function AIModelsPage() {
             padding: '20px 24px',
             display: 'grid',
             gap: 14,
+            minWidth: 0,
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', order: -2 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
               {editingId ? 'Edit AI Model' : 'Create AI Model'}
             </div>
@@ -223,11 +268,12 @@ export default function AIModelsPage() {
           </div>
 
           {[
-            ['Model ID', 'model_id', 'text', editingId],
             ['Display Name', 'display_name', 'text', false],
             ['Short Hint', 'short_hint', 'text', false],
             ['Input Price ($ / 1M)', 'input_price', 'number', false],
             ['Output Price ($ / 1M)', 'output_price', 'number', false],
+            ['Max Output Tokens', 'max_output_tokens', 'number', false],
+            ['Context Window Tokens', 'context_window_tokens', 'number', false],
             ['Sort Order', 'sort_order', 'number', false],
           ].map(([label, key, type, disabled]) => (
             <label key={key} style={{ display: 'grid', gap: 6 }}>
@@ -254,6 +300,98 @@ export default function AIModelsPage() {
               />
             </label>
           ))}
+
+          {!editingId ? (
+            <label style={{ display: 'grid', gap: 6, order: -1 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
+                MODEL ID
+              </span>
+              {activeForm.provider === 'anthropic' ? (
+                <div style={{ display: 'flex', gap: 8, minWidth: 0 }}>
+                  <select
+                    value={activeForm.model_id}
+                    disabled={discovering}
+                    onChange={(event) => updateModelId(event.target.value)}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: 'var(--input-bg)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                      color: 'var(--text)',
+                      fontSize: 13,
+                      fontFamily: 'var(--font-mono)',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="">{discovering ? 'Loading Anthropic models...' : 'Select an Anthropic model'}</option>
+                    {availableAnthropicModels.map((model) => (
+                      <option key={model.model_id} value={model.model_id}>
+                        {model.display_name} — {model.model_id}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => discoverModels()}
+                    disabled={discovering}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 4,
+                      border: '1px solid var(--border)',
+                      background: 'transparent',
+                      fontSize: 11,
+                      fontFamily: 'var(--font-mono)',
+                      cursor: discovering ? 'wait' : 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    REFRESH
+                  </button>
+                </div>
+              ) : (
+                <input
+                  value={activeForm.model_id}
+                  onChange={(event) => updateModelId(event.target.value)}
+                  placeholder="Provider model ID"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'var(--input-bg)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    color: 'var(--text)',
+                    fontSize: 13,
+                    fontFamily: 'var(--font-mono)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              )}
+            </label>
+          ) : (
+            <label style={{ display: 'grid', gap: 6, order: -1 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
+                MODEL ID
+              </span>
+              <input
+                disabled
+                value={activeForm.model_id}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'var(--input-bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
+                  color: 'var(--text)',
+                  fontSize: 13,
+                  fontFamily: 'var(--font-mono)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </label>
+          )}
 
           <label style={{ display: 'grid', gap: 6 }}>
             <span style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em', fontWeight: 500 }}>
@@ -308,6 +446,29 @@ export default function AIModelsPage() {
               onChange={(event) => setActiveForm((current) => ({ ...current, is_active: event.target.checked }))}
             />
             Active
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)' }}>
+            <input
+              type="checkbox"
+              checked={activeForm.is_default}
+              disabled={!activeForm.is_active}
+              onChange={(event) => setActiveForm((current) => ({ ...current, is_default: event.target.checked }))}
+            />
+            Global default model
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)' }}>
+            <input
+              type="checkbox"
+              checked={activeForm.enable_for_all_organizations}
+              disabled={!activeForm.is_active}
+              onChange={(event) => setActiveForm((current) => ({
+                ...current,
+                enable_for_all_organizations: event.target.checked,
+              }))}
+            />
+            Enable for all organizations
           </label>
 
           <button
@@ -378,7 +539,7 @@ export default function AIModelsPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Model', 'Provider', 'Input Price', 'Output Price', 'Status', ''].map((header) => (
+                    {['Model', 'Provider', 'Input Price', 'Output Price', 'Output / Context', 'Status', ''].map((header) => (
                       <th
                         key={header || 'action'}
                         style={{
@@ -415,8 +576,11 @@ export default function AIModelsPage() {
                       <td style={{ padding: '12px', fontSize: 12, color: 'var(--text)' }}>{model.provider}</td>
                       <td style={{ padding: '12px', textAlign: 'right', fontSize: 12, fontFamily: 'var(--font-mono)' }}>${Number(model.input_price).toFixed(4)}</td>
                       <td style={{ padding: '12px', textAlign: 'right', fontSize: 12, fontFamily: 'var(--font-mono)' }}>${Number(model.output_price).toFixed(4)}</td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                        {Number(model.max_output_tokens).toLocaleString()} / {Number(model.context_window_tokens).toLocaleString()}
+                      </td>
                       <td style={{ padding: '12px', fontSize: 12, color: model.is_active ? 'var(--green)' : 'var(--text-muted)' }}>
-                        {model.is_active ? 'active' : 'inactive'}
+                        {model.is_active ? 'active' : 'inactive'}{model.is_default ? ' · default' : ''}
                       </td>
                       <td style={{ padding: '12px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: 8 }}>

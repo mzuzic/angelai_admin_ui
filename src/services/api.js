@@ -26,7 +26,13 @@ async function parseError(response) {
   let detail = 'Request failed'
   try {
     const payload = await response.json()
-    detail = payload.detail || detail
+    if (Array.isArray(payload.detail)) {
+      detail = payload.detail
+        .map((item) => `${Array.isArray(item.loc) ? item.loc.slice(1).join('.') : 'request'}: ${item.msg || 'Invalid value'}`)
+        .join('; ')
+    } else {
+      detail = payload.detail || detail
+    }
   } catch {
     // Keep fallback detail.
   }
@@ -238,6 +244,10 @@ export async function getOrganizationMonthlyUserBreakdown(organizationId, monthS
 
 export async function listAIModels() {
   return request('/api/ai-models')
+}
+
+export async function listAvailableAIModels() {
+  return request('/api/ai-models/available')
 }
 
 export async function createAIModel(payload) {
