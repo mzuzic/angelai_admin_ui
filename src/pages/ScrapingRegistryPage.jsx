@@ -82,6 +82,13 @@ const SCRAPER_STATUS_OPTIONS = [
   ["configured-disabled", "Configured - Disabled"],
 ];
 
+const LAST_SCRAPE_RESULT_OPTIONS = [
+  ["fresh", "Fresh menu"],
+  ["empty_menu", "Empty menu"],
+  ["failed", "Scrape failed"],
+  ["not_run", "Not run"],
+];
+
 function stateLabel(state) {
   return state
     .replaceAll("-", " ")
@@ -138,6 +145,18 @@ function StatusCell({ row, supportedPlatforms }) {
   );
 }
 
+function ScrapeResultCell({ row }) {
+  const result = {
+    fresh: "Fresh menu",
+    empty_menu: "Empty menu",
+    failed: "Scrape failed",
+  }[row.last_scrape_result] || "Not run";
+  const title = row.last_scrape_result === "failed" && row.last_scrape_error
+    ? row.last_scrape_error
+    : "Result of the most recent scrape attempt. Failure detail is visible only in Admin.";
+  return <td title={title}>{result}</td>;
+}
+
 export default function ScrapingRegistryPage() {
   const [overview, setOverview] = useState([]);
   const [sources, setSources] = useState([]);
@@ -148,6 +167,7 @@ export default function ScrapingRegistryPage() {
   const [platformFilter, setPlatformFilter] = useState("");
   const [marketFilter, setMarketFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [lastResultFilter, setLastResultFilter] = useState("");
   const [target, setTarget] = useState(null);
   const [settings, setSettings] = useState({});
   const [sourceUrl, setSourceUrl] = useState("");
@@ -212,9 +232,11 @@ export default function ScrapingRegistryPage() {
               ? !row.market_type
               : row.market_type === marketFilter)) &&
           (!statusFilter ||
-            scraperStatus(row, supportedPlatforms).key === statusFilter),
+            scraperStatus(row, supportedPlatforms).key === statusFilter) &&
+          (!lastResultFilter ||
+            (row.last_scrape_result || "not_run") === lastResultFilter),
       ),
-    [targets, query, platformFilter, marketFilter, statusFilter, supportedPlatforms],
+    [targets, query, platformFilter, marketFilter, statusFilter, lastResultFilter, supportedPlatforms],
   );
   const platformConfig = platforms.find(
     (item) => item.key === target?.platform,
@@ -631,6 +653,19 @@ export default function ScrapingRegistryPage() {
             </select>
             <select
               className="registry-input registry-filter"
+              aria-label="Filter by last scrape result"
+              value={lastResultFilter}
+              onChange={(event) => setLastResultFilter(event.target.value)}
+            >
+              <option value="">All last results</option>
+              {LAST_SCRAPE_RESULT_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <select
+              className="registry-input registry-filter"
               aria-label="Filter by market type"
               value={marketFilter}
               onChange={(event) => setMarketFilter(event.target.value)}
@@ -693,6 +728,7 @@ export default function ScrapingRegistryPage() {
                   "Website",
                   "Platform",
                   "Status",
+                  "Last result",
                   "Last scraped",
                   "",
                 ].map((heading) => (
@@ -729,6 +765,7 @@ export default function ScrapingRegistryPage() {
                     row={row}
                     supportedPlatforms={supportedPlatforms}
                   />
+                  <ScrapeResultCell row={row} />
                   <td>{formatDate(row.last_scraped_at)}</td>
                   <td>
                     <div className="registry-row-actions">
@@ -950,6 +987,21 @@ export default function ScrapingRegistryPage() {
                 </p>
               )}
             </section>
+            {target.last_scrape_result && (
+              <section className="registry-settings">
+                <div className="registry-settings__heading">
+                  <div>
+                    <h3>Last scrape result</h3>
+                    <p>{formatDate(target.last_scrape_attempt_at)}</p>
+                  </div>
+                </div>
+                <p className="registry-settings__empty">
+                  {target.last_scrape_result === "fresh" ? "Fresh menu retrieved."
+                    : target.last_scrape_result === "empty_menu" ? "The menu responded but contained no products."
+                    : target.last_scrape_error || "The latest scrape attempt did not complete."}
+                </p>
+              </section>
+            )}
             <label className="registry-toggle">
               <input
                 type="checkbox"
