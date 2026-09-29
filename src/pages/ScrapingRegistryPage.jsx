@@ -467,9 +467,9 @@ export default function ScrapingRegistryPage() {
       <header className="registry-page__header">
         <div>
           <div className="registry-page__eyebrow">OOS Operations</div>
-          <h1>Scraping registry</h1>
+          <h1>Data Registry</h1>
           <p>
-            Manage stores, scrape configuration, and the public registry source
+            Manage stores, menu configuration, and the public registry source
             for each state.
           </p>
         </div>
