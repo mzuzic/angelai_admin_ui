@@ -67,6 +67,7 @@ const INTERNAL_SETTINGS_KEYS = new Set([
   "registry_match_confidence",
   "registry_delisted",
   "registry_delisted_at",
+  "registry_inactive_reason",
   "registry_legacy_scraper_target_id",
   "registry_legacy_scraper_config_restored_at",
   "website_reviewed_at",
@@ -74,9 +75,9 @@ const INTERNAL_SETTINGS_KEYS = new Set([
 const SCRAPER_STATUS_OPTIONS = [
   ["new", "New"],
   ["no-license-number", "No license number"],
-  ["delisted", "Delisted"],
+  ["inactive", "Inactive"],
   ["missing", "No website"],
-  ["unsupported", "No scraper"],
+  ["unsupported", "No integration"],
   ["needs-setup", "Needs configuration"],
   ["configured-active", "Configured - Active"],
   ["configured-disabled", "Configured - Disabled"],
@@ -112,7 +113,11 @@ function formatDate(value) {
 
 function scraperStatus(row, supportedPlatforms) {
   if (row.settings?.registry_delisted)
-    return { key: "delisted", label: "Delisted" };
+    return {
+      key: "inactive",
+      label: "Inactive",
+      reason: row.settings.registry_inactive_reason || "No longer listed as active by the official registry.",
+    };
   if (row.scrape_status === "no_license_number")
     return { key: "no-license-number", label: "No license number" };
   if (
@@ -127,7 +132,7 @@ function scraperStatus(row, supportedPlatforms) {
   if (row.scrape_status === "missing" && !row.platform && !row.settings?.store_id)
     return { key: "missing", label: "No website" };
   if (row.platform && !supportedPlatforms.has(row.platform))
-    return { key: "unsupported", label: "No scraper" };
+    return { key: "unsupported", label: "No integration" };
   if (row.website || row.platform)
     return { key: "needs-setup", label: "Needs configuration" };
   if (row.scrape_status === "new") return { key: "new", label: "New" };
@@ -138,7 +143,7 @@ function StatusCell({ row, supportedPlatforms }) {
   const status = scraperStatus(row, supportedPlatforms);
   return (
     <td className="registry-status-cell">
-      <span className={`registry-status registry-status--${status.key}`}>
+      <span className={`registry-status registry-status--${status.key}`} title={status.reason}>
         {status.label}
       </span>
     </td>
@@ -980,7 +985,7 @@ export default function ScrapingRegistryPage() {
               ) : (
                 <p className="registry-settings__empty">
                   {isLegacyPlatform
-                    ? "No scraper is available for this platform. Choose a supported platform after verification."
+                    ? "No integration is available for this platform. Choose a supported platform after verification."
                     : target.website
                       ? "A website is recorded, but no platform has been identified."
                       : "No website is recorded, so a platform cannot be verified."}

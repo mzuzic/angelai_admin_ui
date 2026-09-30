@@ -254,7 +254,7 @@ input {
 .registry-status-cell { line-height: 1.25; }
 .registry-status--needs-setup { background: color-mix(in srgb, var(--gold) 14%, var(--card)); color: #9a6300; }
 .registry-status--unsupported { background: color-mix(in srgb, #c63b3b 10%, var(--card)); color: #b63434; }
-.registry-status--delisted { background: color-mix(in srgb, #c63b3b 16%, var(--card)); color: #8c1f1f; }
+.registry-status--inactive { background: color-mix(in srgb, #c63b3b 16%, var(--card)); color: #8c1f1f; }
 .registry-status--no-license-number { background: color-mix(in srgb, var(--gold) 14%, var(--card)); color: #9a6300; }
 .registry-status--missing { background: color-mix(in srgb, var(--text-muted) 10%, var(--card)); color: var(--text-muted); }
 .registry-status--undetected { background: color-mix(in srgb, var(--text-muted) 10%, var(--card)); color: var(--text-muted); }
