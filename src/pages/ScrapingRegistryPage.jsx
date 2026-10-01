@@ -71,23 +71,27 @@ const INTERNAL_SETTINGS_KEYS = new Set([
   "registry_legacy_scraper_target_id",
   "registry_legacy_scraper_config_restored_at",
   "website_reviewed_at",
+  "shop_menu_reviewed_at",
 ]);
 const SCRAPER_STATUS_OPTIONS = [
   ["new", "New"],
   ["no-license-number", "No license number"],
   ["inactive", "Inactive"],
   ["missing", "No website"],
+  ["no-shop-menu", "No Shop/Menu"],
+  ["undetected", "Platform not detected"],
   ["unsupported", "No integration"],
   ["needs-setup", "Needs configuration"],
   ["configured-active", "Configured - Active"],
   ["configured-disabled", "Configured - Disabled"],
 ];
+const NO_SHOP_MENU_PLATFORM = "__no_shop_menu__";
 
 const LAST_SCRAPE_RESULT_OPTIONS = [
   ["fresh", "Fresh menu"],
   ["empty_menu", "Empty menu"],
-  ["failed", "Scrape failed"],
-  ["not_run", "Not run"],
+  ["failed", "Sync failed"],
+  ["not_run", "Not synced"],
 ];
 
 function stateLabel(state) {
@@ -101,10 +105,10 @@ function fieldLabel(key) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 function formatDate(value) {
-  if (!value) return "Not scraped";
+  if (!value) return "Not synced";
   const date = new Date(value);
   return Number.isNaN(date.getTime())
-    ? "Not scraped"
+    ? "Not synced"
     : date.toLocaleString(undefined, {
         dateStyle: "medium",
         timeStyle: "short",
@@ -118,25 +122,30 @@ function scraperStatus(row, supportedPlatforms) {
       label: "Inactive",
       reason: row.settings.registry_inactive_reason || "No longer listed as active by the official registry.",
     };
-  if (row.scrape_status === "no_license_number")
+  if (!row.license)
     return { key: "no-license-number", label: "No license number" };
   if (
-    row.platform &&
-    supportedPlatforms.has(row.platform) &&
-    row.settings?.store_id
-  ) {
-    return row.is_active
-      ? { key: "configured-active", label: "Configured - Active" }
-      : { key: "configured-disabled", label: "Configured - Disabled" };
-  }
-  if (row.scrape_status === "missing" && !row.platform && !row.settings?.store_id)
+    row.scrape_status === "new" &&
+    row.settings?.registry_managed_source_id &&
+    !row.settings?.website_reviewed_at &&
+    !row.website &&
+    !row.platform &&
+    !row.settings?.store_id
+  )
+    return { key: "new", label: "New" };
+  if (!row.website)
     return { key: "missing", label: "No website" };
-  if (row.platform && !supportedPlatforms.has(row.platform))
-    return { key: "unsupported", label: "No integration" };
-  if (row.website || row.platform)
+  if (row.scrape_status === "no_shop_menu")
+    return { key: "no-shop-menu", label: "No Shop/Menu" };
+  if (!row.platform)
+    return { key: "undetected", label: "Platform not detected" };
+  if (!row.settings?.store_id)
     return { key: "needs-setup", label: "Needs configuration" };
-  if (row.scrape_status === "new") return { key: "new", label: "New" };
-  return { key: "new", label: "New" };
+  if (!supportedPlatforms.has(row.platform))
+    return { key: "unsupported", label: "No integration" };
+  return row.is_active
+    ? { key: "configured-active", label: "Configured - Active" }
+    : { key: "configured-disabled", label: "Configured - Disabled" };
 }
 
 function StatusCell({ row, supportedPlatforms }) {
@@ -154,11 +163,11 @@ function ScrapeResultCell({ row }) {
   const result = {
     fresh: "Fresh menu",
     empty_menu: "Empty menu",
-    failed: "Scrape failed",
-  }[row.last_scrape_result] || "Not run";
+    failed: "Sync failed",
+  }[row.last_scrape_result] || "Not synced";
   const title = row.last_scrape_result === "failed" && row.last_scrape_error
     ? row.last_scrape_error
-    : "Result of the most recent scrape attempt. Failure detail is visible only in Admin.";
+    : "Result of the most recent menu sync. Failure detail is visible only in Admin.";
   return <td title={title}>{result}</td>;
 }
 
@@ -168,6 +177,7 @@ export default function ScrapingRegistryPage() {
   const [platforms, setPlatforms] = useState([]);
   const [targets, setTargets] = useState([]);
   const [state, setState] = useState("new-jersey");
+  const [stateLoading, setStateLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [platformFilter, setPlatformFilter] = useState("");
   const [marketFilter, setMarketFilter] = useState("");
@@ -210,7 +220,14 @@ export default function ScrapingRegistryPage() {
   };
 
   useEffect(() => {
-    load();
+    let active = true;
+    setStateLoading(true);
+    load().finally(() => {
+      if (active) setStateLoading(false);
+    });
+    return () => {
+      active = false;
+    };
   }, [state]);
   const source = sources.find((row) => row.state === state);
   const sourceParserMessage =
@@ -274,7 +291,7 @@ export default function ScrapingRegistryPage() {
       if (target.id) await updateScrapeTarget(target.id, payload);
       else await createScrapeTarget(payload);
       setTarget(null);
-      setNotice("Scrape target saved.");
+      setNotice("Store configuration saved.");
       setError("");
       load();
     } catch (requestError) {
@@ -331,7 +348,7 @@ export default function ScrapingRegistryPage() {
       await deleteScrapeTarget(deleting.id);
       setDeleting(null);
       setTarget(null);
-      setNotice("Scrape target deleted and disabled.");
+      setNotice("Store configuration deleted and disabled.");
       setError("");
       load();
     } catch (requestError) {
@@ -359,7 +376,7 @@ export default function ScrapingRegistryPage() {
       const result = await disableScrapeTargets(selectedTargetIds);
       setSelectedTargetIds([]);
       setNotice(
-        `${result.disabled} scrape target${result.disabled === 1 ? "" : "s"} disabled.`,
+        `${result.disabled} store${result.disabled === 1 ? "" : "s"} disabled.`,
       );
       setError("");
       load();
@@ -373,7 +390,7 @@ export default function ScrapingRegistryPage() {
       setBulkDeleting(false);
       setSelectedTargetIds([]);
       setNotice(
-        `${result.deleted} scrape target${result.deleted === 1 ? "" : "s"} deleted and disabled.`,
+        `${result.deleted} store${result.deleted === 1 ? "" : "s"} deleted and disabled.`,
       );
       setError("");
       load();
@@ -395,7 +412,7 @@ export default function ScrapingRegistryPage() {
       );
       const link = document.createElement("a");
       link.href = href;
-      link.download = `${state}-scrape-registry.json`;
+      link.download = `${state}-data-registry.json`;
       link.click();
       URL.revokeObjectURL(href);
       setNotice("Registry export downloaded.");
@@ -498,7 +515,11 @@ export default function ScrapingRegistryPage() {
             <button
               key={item.state}
               className={`registry-state-button${state === item.state ? " is-active" : ""}`}
-              onClick={() => setState(item.state)}
+              onClick={() => {
+                setStateLoading(true);
+                setState(item.state);
+              }}
+              disabled={stateLoading}
             >
               {stateLabel(item.state)}{" "}
               <span>
@@ -514,8 +535,8 @@ export default function ScrapingRegistryPage() {
             <h2>Registry source</h2>
             <p>
               {state === "new-jersey"
-                ? "Refresh downloads the official retailer list, retrieves license numbers from each permit PDF in the background, then links verified scraper targets."
-                : "Refresh updates the official retailer list and links verified scraper targets."}
+                ? "Refresh downloads the official retailer list, retrieves license numbers from each permit PDF in the background, then links verified menu integrations."
+                : "Refresh updates the official retailer list and links verified menu integrations."}
             </p>
           </div>
         </div>
@@ -620,7 +641,10 @@ export default function ScrapingRegistryPage() {
           </button>
         </div>
       </section>
-      <section className="registry-table-panel">
+      <section
+        className="registry-table-panel"
+        aria-busy={stateLoading}
+      >
         <div className="registry-table-panel__toolbar">
           <div>
             <h2>{stateLabel(state)} stores</h2>
@@ -658,7 +682,7 @@ export default function ScrapingRegistryPage() {
             </select>
             <select
               className="registry-input registry-filter"
-              aria-label="Filter by last scrape result"
+              aria-label="Filter by last sync result"
               value={lastResultFilter}
               onChange={(event) => setLastResultFilter(event.target.value)}
             >
@@ -705,15 +729,16 @@ export default function ScrapingRegistryPage() {
           <table className="registry-table">
             <colgroup>
               <col style={{ width: "36px" }} />
-              <col style={{ width: "18%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "10%" }} />
+              <col style={{ width: "17%" }} />
+              <col style={{ width: "9%" }} />
               <col style={{ width: "8%" }} />
+              <col style={{ width: "7%" }} />
               <col style={{ width: "8%" }} />
-              <col style={{ width: "11%" }} />
+              <col style={{ width: "7%" }} />
               <col style={{ width: "10%" }} />
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "12%" }} />
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "116px" }} />
             </colgroup>
             <thead>
               <tr>
@@ -734,7 +759,7 @@ export default function ScrapingRegistryPage() {
                   "Platform",
                   "Status",
                   "Last result",
-                  "Last scraped",
+                  "Last sync",
                   "",
                 ].map((heading) => (
                   <th key={heading}>{heading}</th>
@@ -798,6 +823,12 @@ export default function ScrapingRegistryPage() {
             No stores match this search.
           </div>
         )}
+        {stateLoading && (
+          <div className="registry-table-loading" role="status">
+            <span className="registry-table-loading__spinner" aria-hidden="true" />
+            Loading {stateLabel(state)} stores…
+          </div>
+        )}
       </section>
       {target && (
         <div className="registry-editor-backdrop">
@@ -805,11 +836,11 @@ export default function ScrapingRegistryPage() {
             <div className="registry-editor__heading">
               <div>
                 <h2>
-                  {target.id ? "Edit scrape target" : "Add scrape target"}
+                  {target.id ? "Edit store configuration" : "Add store"}
                 </h2>
                 <p>
                   Store details are saved to the OOS registry. Platform settings
-                  control scraping.
+                  control menu sync.
                 </p>
               </div>
               <button
@@ -860,12 +891,30 @@ export default function ScrapingRegistryPage() {
                 Platform
                 <select
                   className="registry-input"
-                  value={target.platform || ""}
-                  onChange={(event) =>
-                    setTarget({ ...target, platform: event.target.value })
+                  value={
+                    !target.platform && settings.shop_menu_reviewed_at
+                      ? NO_SHOP_MENU_PLATFORM
+                      : target.platform || ""
                   }
+                  onChange={(event) => {
+                    const noShopMenu = event.target.value === NO_SHOP_MENU_PLATFORM;
+                    setTarget({
+                      ...target,
+                      platform: noShopMenu ? "" : event.target.value,
+                    });
+                    setSettings((current) => {
+                      const next = { ...current };
+                      if (noShopMenu)
+                        next.shop_menu_reviewed_at = new Date().toISOString();
+                      else delete next.shop_menu_reviewed_at;
+                      return next;
+                    });
+                  }}
                 >
                   <option value="">Not configured</option>
+                  <option value={NO_SHOP_MENU_PLATFORM} disabled={!target.website}>
+                    No shop/menu found
+                  </option>
                   {isLegacyPlatform && (
                     <option value={target.platform}>
                       {target.platform} (not supported)
@@ -879,25 +928,6 @@ export default function ScrapingRegistryPage() {
                 </select>
               </label>
             </div>
-            <label className="registry-toggle">
-              <input
-                type="checkbox"
-                checked={Boolean(settings.website_reviewed_at)}
-                disabled={Boolean(target.website || target.platform || settings.store_id)}
-                onChange={(event) =>
-                  updateSetting(
-                    "website_reviewed_at",
-                    event.target.checked ? new Date().toISOString() : null,
-                  )
-                }
-              />
-              Website search completed — no public website found
-            </label>
-            {target.website && (
-              <p className="registry-settings__empty">
-                Clear the website before marking this store as having no website.
-              </p>
-            )}
             <section className="registry-settings">
               <div className="registry-settings__heading">
                 <div>
@@ -952,12 +982,12 @@ export default function ScrapingRegistryPage() {
             <section className="registry-settings">
               <div className="registry-settings__heading">
                 <div>
-                  <h3>Scraper settings</h3>
+                  <h3>Menu sync settings</h3>
                   <p>
                     {platformConfig
                       ? settings.store_id
-                        ? "This store is configured for the selected scraper."
-                        : "A scraper is available. Add the Store ID to configure this store."
+                        ? "This store is ready for menu sync."
+                        : "An integration is available. Add the Store ID to enable menu sync."
                       : "Fields vary by the selected platform. Store ID is required; remaining fields are optional overrides."}
                   </p>
                 </div>
@@ -996,14 +1026,14 @@ export default function ScrapingRegistryPage() {
               <section className="registry-settings">
                 <div className="registry-settings__heading">
                   <div>
-                    <h3>Last scrape result</h3>
+                    <h3>Last sync result</h3>
                     <p>{formatDate(target.last_scrape_attempt_at)}</p>
                   </div>
                 </div>
                 <p className="registry-settings__empty">
                   {target.last_scrape_result === "fresh" ? "Fresh menu retrieved."
                     : target.last_scrape_result === "empty_menu" ? "The menu responded but contained no products."
-                    : target.last_scrape_error || "The latest scrape attempt did not complete."}
+                    : target.last_scrape_error || "The latest sync did not complete."}
                 </p>
               </section>
             )}
@@ -1015,14 +1045,14 @@ export default function ScrapingRegistryPage() {
                   setTarget({ ...target, is_active: event.target.checked })
                 }
               />
-              Active scrape target
+              Active menu sync
             </label>
             <div className="registry-editor__actions">
               <button
                 className="registry-button registry-button--primary"
                 type="submit"
               >
-                Save target
+                Save store
               </button>
               {target.id && (
                 <button

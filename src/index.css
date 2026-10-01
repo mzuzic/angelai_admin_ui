@@ -156,6 +156,7 @@ input {
 .registry-source,
 .registry-table-panel,
 .registry-editor { background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+.registry-table-panel { position: relative; }
 .registry-source { padding: 16px 18px; }
 .registry-source__controls { display: flex; gap: 8px; margin-top: 14px; }
 .registry-source .registry-alert { margin-top: 12px; }
@@ -163,7 +164,7 @@ input {
 .registry-actions__controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 
 .registry-input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-size: 12px; min-width: 0; padding: 9px 10px; width: 100%; }
-.registry-input--search { width: 420px; }
+.registry-input--search { flex: 0 0 280px; width: 280px; }
 .registry-input--textarea { font-family: var(--font-mono); line-height: 1.45; min-height: 126px; resize: vertical; }
 
 .registry-button { background: var(--card); border: 1px solid var(--border); border-radius: 5px; color: var(--text); cursor: pointer; font-size: 12px; font-weight: 600; padding: 9px 11px; white-space: nowrap; }
@@ -257,11 +258,18 @@ input {
 .registry-status--inactive { background: color-mix(in srgb, #c63b3b 16%, var(--card)); color: #8c1f1f; }
 .registry-status--no-license-number { background: color-mix(in srgb, var(--gold) 14%, var(--card)); color: #9a6300; }
 .registry-status--missing { background: color-mix(in srgb, var(--text-muted) 10%, var(--card)); color: var(--text-muted); }
+.registry-status--no-shop-menu { background: color-mix(in srgb, var(--gold) 14%, var(--card)); color: #9a6300; }
 .registry-status--undetected { background: color-mix(in srgb, var(--text-muted) 10%, var(--card)); color: var(--text-muted); }
 .registry-status--configured-active { background: color-mix(in srgb, var(--green) 12%, var(--card)); color: var(--green); }
 .registry-status--configured-disabled { background: color-mix(in srgb, var(--text-muted) 10%, var(--card)); color: var(--text-muted); }
 
 .registry-table-empty { color: var(--text-muted); font-size: 12px; padding: 26px 18px; text-align: center; }
+.registry-table-loading { align-items: center; backdrop-filter: blur(2px); background: color-mix(in srgb, var(--card) 88%, transparent); border-radius: 8px; color: var(--text); display: flex; font-size: 13px; font-weight: 600; gap: 9px; inset: 0; justify-content: center; position: absolute; z-index: 2; }
+.registry-table-loading__spinner { animation: registry-spin 0.8s linear infinite; border: 2px solid var(--border); border-radius: 50%; border-top-color: var(--accent); height: 18px; width: 18px; }
+
+@keyframes registry-spin {
+  to { transform: rotate(360deg); }
+}
 
 .registry-editor-backdrop { align-items: center; background: rgba(20, 20, 20, 0.45); display: flex; inset: 0; justify-content: center; padding: 24px; position: fixed; z-index: 250; }
 .registry-editor { max-height: calc(100vh - 48px); overflow-y: auto; padding: 18px; width: min(860px, 100%); }
@@ -292,7 +300,7 @@ input {
   .registry-source__controls,
   .registry-actions__controls { align-items: stretch; flex-direction: column; }
   .registry-page__count { justify-items: start; }
-  .registry-input--search { width: 100%; }
+  .registry-input--search { flex-basis: auto; width: 100%; }
   .registry-table-panel__actions { width: 100%; }
   .registry-table-panel__actions .registry-button { flex: 0 0 auto; }
   .registry-fields,
