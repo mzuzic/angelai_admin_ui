@@ -31,7 +31,9 @@ function totalTokens(stats) {
 }
 
 function fmtMonthLabel(value) {
-  return new Date(value).toLocaleDateString(undefined, {
+  const [year, month] = String(value || '').split('-').map(Number)
+  if (!year || !month) return value
+  return new Date(year, month - 1, 1).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'long',
   })
@@ -519,6 +521,9 @@ export default function OrganizationsPage() {
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
+  const [costDetail, setCostDetail] = useState(null)
+  const [costLoading, setCostLoading] = useState(false)
+  const [costError, setCostError] = useState('')
   const [usageUser, setUsageUser] = useState(null)
   const [usageData, setUsageData] = useState(null)
   const [usageError, setUsageError] = useState('')
@@ -595,15 +600,19 @@ export default function OrganizationsPage() {
   async function loadDetail(orgId) {
     if (!orgId) {
       setDetail(null)
+      setCostDetail(null)
       return
     }
     setDetailLoading(true)
     try {
       const data = await getOrganizationDetail(orgId)
       setDetail(data)
+      setCostDetail(data)
       setDetailError('')
+      setCostError('')
     } catch (err) {
       setDetail(null)
+      setCostDetail(null)
       setDetailError(err.message || 'Failed to load organization detail')
     } finally {
       setDetailLoading(false)
@@ -712,6 +721,21 @@ export default function OrganizationsPage() {
     await loadOrganizations(selectedOrgId)
     if (selectedOrgId) {
       await loadDetail(selectedOrgId)
+    }
+  }
+
+  async function handleEditTabChange(key) {
+    setEditTab(key)
+    if (key !== 'cost' || !selectedOrgId) return
+
+    setCostLoading(true)
+    setCostError('')
+    try {
+      setCostDetail(await getOrganizationDetail(selectedOrgId))
+    } catch (err) {
+      setCostError(err.message || 'Failed to refresh cost data')
+    } finally {
+      setCostLoading(false)
     }
   }
 
@@ -1284,7 +1308,7 @@ export default function OrganizationsPage() {
                         <button
                           key={key}
                           type="button"
-                          onClick={() => setEditTab(key)}
+                          onClick={() => handleEditTabChange(key)}
                           style={{
                             padding: '8px 12px',
                             borderRadius: 999,
@@ -1639,6 +1663,23 @@ export default function OrganizationsPage() {
 
                   {editTab === 'cost' ? (
                     <div style={{ display: 'grid', gap: 12 }}>
+                      {costLoading ? (
+                        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Refreshing cost data...</div>
+                      ) : null}
+                      {costError ? (
+                        <div
+                          style={{
+                            background: '#FFF0F0',
+                            border: '1px solid #FFCACA',
+                            borderRadius: 4,
+                            padding: '10px 12px',
+                            fontSize: 12,
+                            color: '#DC3545',
+                          }}
+                        >
+                          {costError}
+                        </div>
+                      ) : null}
                       <div style={{ display: 'grid', gap: 12 }}>
                         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Monthly stored costs</div>
                         <div style={{ overflowX: 'auto' }}>
@@ -1663,7 +1704,7 @@ export default function OrganizationsPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {detail.monthly_history.map((row) => (
+                              {(costDetail || detail).monthly_history.map((row) => (
                                 <tr key={row.month_start} style={{ borderBottom: '1px solid #F1EFEA' }}>
                                   <td style={{ padding: '12px', fontSize: 13, color: 'var(--text)' }}>
                                     <button
@@ -1742,7 +1783,7 @@ export default function OrganizationsPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {detail.users.map((user) => (
+                              {(costDetail || detail).users.map((user) => (
                                 <tr key={user.user_id} style={{ borderBottom: '1px solid #F1EFEA' }}>
                                   <td style={{ padding: '12px', fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
                                     {user.name}
