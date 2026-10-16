@@ -27,6 +27,8 @@ const EMPTY_TARGET = {
   city: "",
   address: "",
   zipcode: "",
+  latitude: null,
+  longitude: null,
   license: "",
   market_type: "",
   website: "",
@@ -287,7 +289,13 @@ export default function ScrapingRegistryPage() {
         target.roster_rank === undefined
           ? null
           : Number(target.roster_rank);
-      const payload = { ...target, settings, roster_rank };
+      const latitude = target.latitude === "" || target.latitude == null ? null : Number(target.latitude);
+      const longitude = target.longitude === "" || target.longitude == null ? null : Number(target.longitude);
+      if ([latitude, longitude].some((value) => value !== null && !Number.isFinite(value)))
+        throw new Error("Enter valid latitude and longitude values.");
+      if ((latitude === null) !== (longitude === null))
+        throw new Error("Enter both latitude and longitude, or leave both empty.");
+      const payload = { ...target, settings, roster_rank, latitude, longitude };
       if (target.id) await updateScrapeTarget(target.id, payload);
       else await createScrapeTarget(payload);
       setTarget(null);
@@ -586,8 +594,8 @@ export default function ScrapingRegistryPage() {
           <div>
             <h2>Actions</h2>
             <p>
-              Export or import registry data, maintain regions, and add stores
-              for the selected state.
+              Export stores for platform and address research, import verified
+              coordinates, maintain regions, and add stores for the selected state.
             </p>
           </div>
         </div>
@@ -867,9 +875,26 @@ export default function ScrapingRegistryPage() {
                   <input
                     className="registry-input"
                     value={target[key] || ""}
-                    onChange={(event) =>
-                      setTarget({ ...target, [key]: event.target.value })
-                    }
+                    onChange={(event) => setTarget({
+                      ...target,
+                      [key]: event.target.value,
+                      ...(["address", "city", "zipcode"].includes(key) ? { latitude: null, longitude: null } : {}),
+                    })}
+                  />
+                </label>
+              ))}
+              {[["Latitude", "latitude", -90, 90], ["Longitude", "longitude", -180, 180]].map(([label, key, min, max]) => (
+                <label key={key}>
+                  {label}
+                  <input
+                    className="registry-input"
+                    type="number"
+                    step="any"
+                    min={min}
+                    max={max}
+                    value={target[key] ?? ""}
+                    onChange={(event) => setTarget({ ...target, [key]: event.target.value })}
+                    title="Exact store location for distance search; leave both coordinates empty if unverified"
                   />
                 </label>
               ))}
