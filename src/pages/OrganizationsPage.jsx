@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   createOrganization,
@@ -11,9 +11,18 @@ import {
   getOrganizationUserTokenUsage,
   listOrganizations,
   listScrapeDataStates,
+  setOrganizationCredential,
+  deleteOrganizationCredential,
 } from '../services/api.js'
 import ConfirmModal from '../components/ConfirmModal.jsx'
 import { useAuth } from '../contexts/auth-context.js'
+
+const INTEGRATIONS = [
+  ['hubspot_api_key', 'HubSpot API key'],
+  ['flock_tokens', 'Flock token', 'A bot token or a JSON object of tokens.'],
+  ['leaflink_api_key', 'LeafLink API key'],
+  ['apex_api_key', 'Apex API key'],
+]
 
 function fmtNumber(value) {
   return (Number(value) || 0).toLocaleString()
@@ -547,6 +556,10 @@ export default function OrganizationsPage() {
   const [oosDataStates, setOosDataStates] = useState([])
   const [scrapeDataStatesError, setScrapeDataStatesError] = useState('')
   const [editTab, setEditTab] = useState('profile')
+  const [credentials, setCredentials] = useState({})
+  const [credentialDrafts, setCredentialDrafts] = useState({})
+  const [removeCredential, setRemoveCredential] = useState(null)
+  const detailRequest = useRef(0)
   const MODULES = [
     ['operations', 'Operations', 'Order pipeline, Metrc, credit, Route Planner — off by default'],
     ['marketing', 'Marketing', 'Marketing emails + Market Insights'],
@@ -598,24 +611,34 @@ export default function OrganizationsPage() {
   }
 
   async function loadDetail(orgId) {
+    const requestId = ++detailRequest.current
     if (!orgId) {
       setDetail(null)
       setCostDetail(null)
       return
     }
     setDetailLoading(true)
+    setEditError('')
+    setEditNotice('')
+    setCredentialDrafts({})
+    setRemoveCredential(null)
     try {
       const data = await getOrganizationDetail(orgId)
+      if (requestId !== detailRequest.current) return
       setDetail(data)
+      setCredentials(Object.fromEntries((data.credentials || []).map((row) => [row.key, row])))
+      setCredentialDrafts({})
+      setRemoveCredential(null)
       setCostDetail(data)
       setDetailError('')
       setCostError('')
     } catch (err) {
+      if (requestId !== detailRequest.current) return
       setDetail(null)
       setCostDetail(null)
       setDetailError(err.message || 'Failed to load organization detail')
     } finally {
-      setDetailLoading(false)
+      if (requestId === detailRequest.current) setDetailLoading(false)
     }
   }
 
@@ -726,6 +749,8 @@ export default function OrganizationsPage() {
 
   async function handleEditTabChange(key) {
     setEditTab(key)
+    setEditError('')
+    setEditNotice('')
     if (key !== 'cost' || !selectedOrgId) return
 
     setCostLoading(true)
@@ -805,6 +830,38 @@ export default function OrganizationsPage() {
     setEditError('')
     setEditNotice('')
 
+    if (editTab === 'integrations') {
+      try {
+        const pending = []
+        for (const [key] of INTEGRATIONS) {
+          const raw = (credentialDrafts[key] || '').trim()
+          if (!raw) continue
+          let value = raw
+          if (key === 'flock_tokens') {
+            try { value = JSON.parse(raw) } catch { /* A single bot token is also supported. */ }
+          }
+          pending.push([key, value, [key]])
+        }
+        const flowhubKeys = ['flowhub_client_id', 'flowhub_api_key', 'flowhub_location_id']
+        if (flowhubKeys.some((key) => credentialDrafts[key]?.trim())) {
+          const [client_id, api_key, location_id] = flowhubKeys.map((key) => (credentialDrafts[key] || '').trim())
+          if (!client_id || !api_key) throw new Error('Enter both Flowhub client ID and API key to replace the connection.')
+          pending.push(['flowhub_credentials', { client_id, api_key, location_id }, flowhubKeys])
+        }
+        for (const [key, value, draftKeys] of pending) {
+          const row = await setOrganizationCredential(detail.id, key, value)
+          setCredentials((current) => ({ ...current, [key]: row }))
+          setCredentialDrafts((current) => Object.fromEntries(Object.entries(current).filter(([k]) => !draftKeys.includes(k))))
+        }
+        setEditNotice('Integrations saved.')
+      } catch (err) {
+        setEditError(err.message || 'Failed to save integrations')
+      } finally {
+        setSavingOrg(false)
+      }
+      return
+    }
+
     let parsedSettings
     try {
       parsedSettings = JSON.parse(editForm.settings || '{}')
@@ -862,6 +919,27 @@ export default function OrganizationsPage() {
     } catch (err) {
       setEditError(err.message || 'Failed to update organization')
     } finally {
+      setSavingOrg(false)
+    }
+  }
+
+  async function handleRemoveCredential() {
+    if (savingOrg || !removeCredential) return
+    setSavingOrg(true)
+    setEditError('')
+    setEditNotice('')
+    const key = removeCredential
+    try {
+      await deleteOrganizationCredential(detail.id, key)
+      setCredentials((current) => { const next = { ...current }; delete next[key]; return next })
+      const draftKeys = key === 'flowhub_credentials'
+        ? ['flowhub_client_id', 'flowhub_api_key', 'flowhub_location_id'] : [key]
+      setCredentialDrafts((current) => Object.fromEntries(Object.entries(current).filter(([k]) => !draftKeys.includes(k))))
+      setEditNotice('Credential removed. Future syncs using it will require a new credential.')
+    } catch (err) {
+      setEditError(err.message || 'Failed to remove credential')
+    } finally {
+      setRemoveCredential(null)
       setSavingOrg(false)
     }
   }
@@ -1041,6 +1119,7 @@ export default function OrganizationsPage() {
           <button
             type="button"
             onClick={handleRefresh}
+            disabled={savingOrg || deletingOrg}
             style={{
               padding: '8px 10px',
               borderRadius: 6,
@@ -1102,7 +1181,7 @@ export default function OrganizationsPage() {
                   return (
                     <tr
                       key={organization.id}
-                      onClick={() => setSelectedOrgId(organization.id)}
+                      onClick={() => { if (!savingOrg && !deletingOrg) setSelectedOrgId(organization.id) }}
                       style={{
                         borderBottom: '1px solid #F1EFEA',
                         cursor: 'pointer',
@@ -1241,7 +1320,7 @@ export default function OrganizationsPage() {
                       cursor: savingOrg ? 'wait' : 'pointer',
                     }}
                   >
-                    {savingOrg ? 'SAVING...' : 'SAVE ORGANIZATION'}
+                    {savingOrg ? 'SAVING...' : editTab === 'integrations' ? 'SAVE INTEGRATIONS' : 'SAVE ORGANIZATION'}
                   </button>
                   <button
                     type="button"
@@ -1298,6 +1377,7 @@ export default function OrganizationsPage() {
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {[
                       ['profile', 'Profile'],
+                      ['integrations', 'Integrations'],
                       ['scrape_data', 'Data Access'],
                       ['ai_models', 'AI Models'],
                       ['cost', 'Cost'],
@@ -1308,6 +1388,7 @@ export default function OrganizationsPage() {
                         <button
                           key={key}
                           type="button"
+                          disabled={savingOrg}
                           onClick={() => handleEditTabChange(key)}
                           style={{
                             padding: '8px 12px',
@@ -1936,6 +2017,46 @@ export default function OrganizationsPage() {
                   </div>
                   </>
                   ) : null}
+                  {editTab === 'integrations' ? (
+                    <div className="organization-integrations">
+                      <p>Credentials are encrypted and shared with the organization's app settings. Leave blank to keep the existing value. Configured means saved, not API-tested.</p>
+                      {INTEGRATIONS.map(([key, label, hint]) => (
+                        <div className="organization-integration" key={key}>
+                          <label className="registry-setting-field">
+                            {label}
+                            <span className={`organization-integration__hint${credentials[key]?.is_set ? ' is-configured' : ''}`}>{credentials[key]?.is_set ? 'Configured' : 'Not configured'}</span>
+                            <input className="registry-input" type="password" autoComplete="new-password" disabled={savingOrg}
+                              value={credentialDrafts[key] || ''} placeholder="Enter a replacement value"
+                              onChange={(event) => setCredentialDrafts((current) => ({ ...current, [key]: event.target.value }))} />
+                          </label>
+                          {hint && <p>{hint}</p>}
+                          {credentials[key]?.is_set && <button type="button" className="registry-button registry-button--danger"
+                            disabled={savingOrg} onClick={() => setRemoveCredential(key)}>Remove {label}</button>}
+                        </div>
+                      ))}
+                      <div className="organization-integration">
+                        <strong>Flowhub</strong>
+                        <p><span className={`organization-integration__hint${credentials.flowhub_credentials?.is_set ? ' is-configured' : ''}`}>{credentials.flowhub_credentials?.is_set ? 'Configured' : 'Not configured'}</span>. To replace, enter both client ID and API key, plus the location ID if needed.</p>
+                        {[['flowhub_client_id', 'Flowhub client ID'], ['flowhub_api_key', 'Flowhub API key'],
+                          ['flowhub_location_id', 'Flowhub location ID (optional for a single-store account)']].map(([key, label]) => (
+                          <label key={key} className="registry-setting-field">
+                            {label}
+                            <input className="registry-input" type="password" autoComplete="new-password" disabled={savingOrg}
+                              value={credentialDrafts[key] || ''}
+                              onChange={(event) => setCredentialDrafts((current) => ({ ...current, [key]: event.target.value }))} />
+                          </label>
+                        ))}
+                        {credentials.flowhub_credentials?.is_set && <button type="button" className="registry-button registry-button--danger"
+                          disabled={savingOrg} onClick={() => setRemoveCredential('flowhub_credentials')}>Remove Flowhub</button>}
+                      </div>
+                      <div className="organization-integration">
+                        <strong>QuickBooks Online</strong>
+                        <p>{detail.quickbooks_connection?.is_connected ? 'OAuth credentials saved' : 'Not connected'}
+                          {detail.quickbooks_connection?.company_name ? ` — ${detail.quickbooks_connection.company_name}` : ''}</p>
+                        <p>Connect, reconnect or disconnect through Organization → Integrations in the app using the existing OAuth flow.</p>
+                      </div>
+                    </div>
+                  ) : null}
                 </>
               ) : null}
             </form>
@@ -1990,6 +2111,10 @@ export default function OrganizationsPage() {
           }}
         />
       ) : null}
+      {removeCredential && <ConfirmModal title="Remove integration credential?" danger
+        message="This removes the saved credential for this organization. Syncs using it will stop working until it is replaced."
+        confirmLabel={savingOrg ? 'Removing...' : 'Remove'} onConfirm={handleRemoveCredential}
+        onCancel={() => { if (!savingOrg) setRemoveCredential(null) }} />}
     </div>
   )
 }
