@@ -103,6 +103,13 @@ input {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
+.organization-integrations { display: grid; gap: 18px; }
+.organization-integrations p,
+.organization-integration__hint { color: var(--text-muted); font-size: 12px; font-weight: 400; letter-spacing: normal; line-height: 1.5; text-transform: none; }
+.organization-integration__hint.is-configured { color: var(--green); font-weight: 700; }
+.organization-integration { border-top: 1px solid var(--border); display: grid; gap: 10px; padding-top: 16px; }
+.organization-integration > button { justify-self: start; }
+
 .registry-page {
   display: grid;
   gap: 18px;

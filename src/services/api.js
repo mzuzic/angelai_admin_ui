@@ -221,6 +221,16 @@ export async function updateOrganization(organizationId, payload) {
   })
 }
 
+export async function setOrganizationCredential(organizationId, key, value) {
+  return request(`/api/organizations/${organizationId}/credentials`, {
+    method: 'PUT', body: { key, value },
+  })
+}
+
+export async function deleteOrganizationCredential(organizationId, key) {
+  return request(`/api/organizations/${organizationId}/credentials/${key}`, { method: 'DELETE' })
+}
+
 export async function deleteOrganization(organizationId) {
   return request(`/api/organizations/${organizationId}`, {
     method: 'DELETE',
