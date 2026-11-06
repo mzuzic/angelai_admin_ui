@@ -567,6 +567,7 @@ export default function OrganizationsPage() {
     ['scripts', 'Scripts', 'Rep call-script assignments'],
     ['quickbooks', 'QuickBooks', 'Built-in QuickBooks receivables dashboard'],
     ['edge', 'Dispensary Edge', 'Dispensary competitive intelligence — off by default'],
+    ['retailer', 'Retailer', 'Use sales and stock chat defaults when no Angels are configured'],
   ]
   const [featureSaving, setFeatureSaving] = useState('')
   const [featureError, setFeatureError] = useState('')
