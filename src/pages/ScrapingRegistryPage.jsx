@@ -324,7 +324,7 @@ export default function ScrapingRegistryPage() {
           row.parser_message || "No parser configured for this source.",
         );
       let result = await refreshRegistrySource(row.id);
-      if (state === "new-jersey" && result.task_id) {
+      if (result.task_id) {
         let status = await getRegistryRefreshStatus(result.task_id);
         while (status.state === "running") {
           setRefreshProgress(status.progress || {});
@@ -333,7 +333,7 @@ export default function ScrapingRegistryPage() {
         }
         if (status.state === "error")
           throw new Error(
-            status.error || "New Jersey registry refresh failed.",
+            status.error || "Registry refresh failed.",
           );
         result = status.result;
       }
@@ -572,7 +572,7 @@ export default function ScrapingRegistryPage() {
         {refreshing && refreshProgress && (
           <div className="registry-alert registry-alert--success">
             {refreshProgress.message ||
-              "Starting New Jersey registry refresh..."}
+              "Starting registry refresh..."}
             {refreshProgress.percent !== undefined
               ? ` (${refreshProgress.percent}%)`
               : ""}
